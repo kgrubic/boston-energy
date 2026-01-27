@@ -1,0 +1,84 @@
+from datetime import date
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy.orm import Session
+from sqlalchemy import select, and_
+
+from app.db.session import get_db
+from app.models.contract import Contract, EnergyType, ContractStatus
+from app.schemas.contract import ContractCreate, ContractOut, ContractUpdate
+
+router = APIRouter(prefix="/contracts", tags=["contracts"])
+
+@router.post("", response_model=ContractOut, status_code=201)
+def create_contract(payload: ContractCreate, db: Session = Depends(get_db)):
+    c = Contract(**payload.model_dump())
+    db.add(c)
+    db.commit()
+    db.refresh(c)
+    return c
+
+@router.get("", response_model=list[ContractOut])
+def list_contracts(
+    db: Session = Depends(get_db),
+    energy_type: list[EnergyType] | None = Query(default=None),
+    location: str | None = None,
+    status: ContractStatus | None = ContractStatus.Available,
+    price_min: float | None = None,
+    price_max: float | None = None,
+    qty_min: int | None = None,
+    qty_max: int | None = None,
+    start_from: date | None = None,
+    end_to: date | None = None,
+):
+    filters = []
+    if status is not None:
+        filters.append(Contract.status == status)
+    if energy_type:
+        filters.append(Contract.energy_type.in_(energy_type))
+    if location:
+        filters.append(Contract.location == location)
+    if price_min is not None:
+        filters.append(Contract.price_per_mwh >= price_min)
+    if price_max is not None:
+        filters.append(Contract.price_per_mwh <= price_max)
+    if qty_min is not None:
+        filters.append(Contract.quantity_mwh >= qty_min)
+    if qty_max is not None:
+        filters.append(Contract.quantity_mwh <= qty_max)
+    if start_from is not None:
+        filters.append(Contract.delivery_start >= start_from)
+    if end_to is not None:
+        filters.append(Contract.delivery_end <= end_to)
+
+    stmt = select(Contract).where(and_(*filters)) if filters else select(Contract)
+    return db.scalars(stmt.order_by(Contract.id.desc())).all()
+
+@router.get("/{contract_id}", response_model=ContractOut)
+def get_contract(contract_id: int, db: Session = Depends(get_db)):
+    c = db.get(Contract, contract_id)
+    if not c:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Contract not found")
+    return c
+
+@router.patch("/{contract_id}", response_model=ContractOut)
+def update_contract(contract_id: int, payload: ContractUpdate, db: Session = Depends(get_db)):
+    c = db.get(Contract, contract_id)
+    if not c:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Contract not found")
+
+    for k, v in payload.model_dump(exclude_unset=True).items():
+        setattr(c, k, v)
+
+    db.commit()
+    db.refresh(c)
+    return c
+
+@router.delete("/{contract_id}", status_code=204)
+def delete_contract(contract_id: int, db: Session = Depends(get_db)):
+    c = db.get(Contract, contract_id)
+    if not c:
+        return
+    db.delete(c)
+    db.commit()
