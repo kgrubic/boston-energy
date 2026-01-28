@@ -1,5 +1,17 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Alert,
+  Button,
+  Card,
+  CardActions,
+  CardContent,
+  CircularProgress,
+  Grid,
+  Paper,
+  Stack,
+  Typography,
+} from "@mui/material";
+import {
   fetchPortfolioItems,
   fetchPortfolioMetrics,
   removeFromPortfolio,
@@ -18,47 +30,88 @@ export default function PortfolioPage() {
     queryFn: fetchPortfolioMetrics,
   });
 
-  if (itemsQ.isLoading || metricsQ.isLoading) return <div>Loading…</div>;
-  if (itemsQ.error || metricsQ.error) return <div>Error loading portfolio</div>;
+  if (itemsQ.isLoading || metricsQ.isLoading)
+    return (
+      <Stack alignItems="center" justifyContent="center" sx={{ py: 8 }}>
+        <CircularProgress />
+      </Stack>
+    );
+  if (itemsQ.error || metricsQ.error)
+    return <Alert severity="error">Unable to load portfolio.</Alert>;
 
   const items = itemsQ.data ?? [];
   const m = metricsQ.data!;
 
   return (
-    <div>
-      <h2>Portfolio</h2>
+    <Stack spacing={2}>
+      <Typography variant="h5" fontWeight={700}>
+        Portfolio
+      </Typography>
 
-      <div style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12 }}>
-        <div>Total contracts: {m.total_contracts}</div>
-        <div>Total capacity: {m.total_capacity_mwh} MWh</div>
-        <div>Total cost: ${m.total_cost}</div>
-        <div>Weighted avg: ${m.weighted_avg_price_per_mwh}/MWh</div>
-      </div>
+      <Paper variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 6, md: 3 }}>
+            <Typography variant="caption" color="text.secondary">
+              Total contracts
+            </Typography>
+            <Typography variant="h6">{m.total_contracts}</Typography>
+          </Grid>
+          <Grid size={{ xs: 6, md: 3 }}>
+            <Typography variant="caption" color="text.secondary">
+              Total capacity
+            </Typography>
+            <Typography variant="h6">{m.total_capacity_mwh} MWh</Typography>
+          </Grid>
+          <Grid size={{ xs: 6, md: 3 }}>
+            <Typography variant="caption" color="text.secondary">
+              Total cost
+            </Typography>
+            <Typography variant="h6">${m.total_cost}</Typography>
+          </Grid>
+          <Grid size={{ xs: 6, md: 3 }}>
+            <Typography variant="caption" color="text.secondary">
+              Weighted avg
+            </Typography>
+            <Typography variant="h6">
+              ${m.weighted_avg_price_per_mwh}/MWh
+            </Typography>
+          </Grid>
+        </Grid>
+      </Paper>
 
-      <h3 style={{ marginTop: 16 }}>Selected</h3>
-      <div style={{ display: "grid", gap: 10 }}>
+      <Typography variant="h6" fontWeight={700}>
+        Selected
+      </Typography>
+      <Grid container spacing={2}>
         {items.map((it) => (
-          <div
-            key={it.id}
-            style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12 }}
-          >
-            <div>
-              <strong>#{it.contract.id}</strong> • {it.contract.energy_type} •{" "}
-              {it.contract.quantity_mwh} MWh
-            </div>
-            <button
-              style={{ marginTop: 8 }}
-              onClick={async () => {
-                await removeFromPortfolio(it.contract.id);
-                qc.invalidateQueries({ queryKey: ["portfolio-items"] });
-                qc.invalidateQueries({ queryKey: ["portfolio-metrics"] });
-              }}
-            >
-              Remove
-            </button>
-          </div>
+          <Grid key={it.id} size={{ xs: 12, md: 6 }}>
+            <Card variant="outlined" sx={{ borderRadius: 3, height: "100%" }}>
+              <CardContent sx={{ pb: 1 }}>
+                <Typography variant="subtitle1" fontWeight={700}>
+                  #{it.contract.id} • {it.contract.energy_type}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {it.contract.quantity_mwh} MWh
+                </Typography>
+              </CardContent>
+              <CardActions sx={{ px: 2, pb: 2 }}>
+                <Button
+                  variant="outlined"
+                  color="error"
+                  fullWidth
+                  onClick={async () => {
+                    await removeFromPortfolio(it.contract.id);
+                    qc.invalidateQueries({ queryKey: ["portfolio-items"] });
+                    qc.invalidateQueries({ queryKey: ["portfolio-metrics"] });
+                  }}
+                >
+                  Remove
+                </Button>
+              </CardActions>
+            </Card>
+          </Grid>
         ))}
-      </div>
-    </div>
+      </Grid>
+    </Stack>
   );
 }

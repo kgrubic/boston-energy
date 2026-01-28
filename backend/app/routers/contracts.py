@@ -1,5 +1,5 @@
 from datetime import date
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import select, and_
 
@@ -30,6 +30,13 @@ def list_contracts(
     start_from: date | None = None,
     end_to: date | None = None,
 ):
+    if price_min is not None and price_max is not None and price_min > price_max:
+        raise HTTPException(status_code=400, detail="price_min cannot be greater than price_max")
+    if qty_min is not None and qty_max is not None and qty_min > qty_max:
+        raise HTTPException(status_code=400, detail="qty_min cannot be greater than qty_max")
+    if start_from is not None and end_to is not None and start_from > end_to:
+        raise HTTPException(status_code=400, detail="start_from cannot be after end_to")
+
     filters = []
     if status is not None:
         filters.append(Contract.status == status)
