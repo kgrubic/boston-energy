@@ -1,7 +1,8 @@
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import type { Dayjs } from "dayjs";
+import dayjs from "dayjs";
 import {
   Alert,
   Box,
@@ -25,6 +26,7 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
+import { useSearchParams } from "react-router-dom";
 import { fetchContracts, type ContractFilters } from "../api/contracts";
 import { addToPortfolio } from "../api/portfolio";
 
@@ -47,17 +49,48 @@ const toNumberOrUndefined = (value: string) => {
 
 export default function ContractsPage() {
   const qc = useQueryClient();
-  const [energyTypes, setEnergyTypes] = useState<string[]>([]);
-  const [location, setLocation] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialParamsRef = useRef<URLSearchParams | null>(null);
+  if (!initialParamsRef.current) {
+    initialParamsRef.current = new URLSearchParams(window.location.search);
+  }
+  const initialParams = initialParamsRef.current;
+  const hasInitialPriceParamsRef = useRef(
+    initialParams.has("price_min") || initialParams.has("price_max"),
+  );
+
+  const [energyTypes, setEnergyTypes] = useState<string[]>(
+    initialParams.getAll("energy_type"),
+  );
+  const [location, setLocation] = useState(
+    initialParams.get("location") ?? "",
+  );
   const deferredLocation = useDeferredValue(location);
   const [priceBounds, setPriceBounds] = useState<[number, number] | null>(null);
-  const [priceRange, setPriceRange] = useState<[number, number]>(
-    DEFAULT_PRICE_RANGE,
+  const initialPriceMin = toNumberOrUndefined(
+    initialParams.get("price_min") ?? "",
   );
-  const [qtyMin, setQtyMin] = useState("");
-  const [qtyMax, setQtyMax] = useState("");
-  const [startDate, setStartDate] = useState<Dayjs | null>(null);
-  const [endDate, setEndDate] = useState<Dayjs | null>(null);
+  const initialPriceMax = toNumberOrUndefined(
+    initialParams.get("price_max") ?? "",
+  );
+  const [priceRange, setPriceRange] = useState<[number, number]>([
+    initialPriceMin ?? DEFAULT_PRICE_RANGE[0],
+    initialPriceMax ?? DEFAULT_PRICE_RANGE[1],
+  ]);
+  const [qtyMin, setQtyMin] = useState(
+    initialParams.get("qty_min") ?? "",
+  );
+  const [qtyMax, setQtyMax] = useState(
+    initialParams.get("qty_max") ?? "",
+  );
+  const [startDate, setStartDate] = useState<Dayjs | null>(() => {
+    const value = initialParams.get("start_from");
+    return value ? dayjs(value) : null;
+  });
+  const [endDate, setEndDate] = useState<Dayjs | null>(() => {
+    const value = initialParams.get("end_to");
+    return value ? dayjs(value) : null;
+  });
 
   const filters = useMemo<ContractFilters>(() => {
     const next: ContractFilters = {};
@@ -104,12 +137,61 @@ export default function ContractsPage() {
       const maxPrice = Math.ceil(Math.max(...prices));
       const nextBounds: [number, number] = [minPrice, maxPrice];
       setPriceBounds(nextBounds);
-      setPriceRange(nextBounds);
+      setPriceRange((prev) => {
+        const hasInitialPriceParams = hasInitialPriceParamsRef.current;
+        if (!hasInitialPriceParams) return nextBounds;
+        return [
+          Math.max(nextBounds[0], prev[0]),
+          Math.min(nextBounds[1], prev[1]),
+        ];
+      });
     }
   }, [data, priceBounds]);
 
   const resultsCount = data?.length ?? 0;
   const bounds = priceBounds ?? DEFAULT_PRICE_RANGE;
+
+  useEffect(() => {
+    const nextParams = new URLSearchParams();
+    if (energyTypes.length > 0) {
+      energyTypes.forEach((value) => nextParams.append("energy_type", value));
+    }
+
+    const trimmedLocation = location.trim();
+    if (trimmedLocation) nextParams.set("location", trimmedLocation);
+
+    if (priceBounds) {
+      if (priceRange[0] !== priceBounds[0]) {
+        nextParams.set("price_min", String(priceRange[0]));
+      }
+      if (priceRange[1] !== priceBounds[1]) {
+        nextParams.set("price_max", String(priceRange[1]));
+      }
+    }
+
+    const qtyMinValue = toNumberOrUndefined(qtyMin);
+    if (qtyMinValue !== undefined) nextParams.set("qty_min", String(qtyMinValue));
+    const qtyMaxValue = toNumberOrUndefined(qtyMax);
+    if (qtyMaxValue !== undefined) nextParams.set("qty_max", String(qtyMaxValue));
+
+    if (startDate) nextParams.set("start_from", startDate.format("YYYY-MM-DD"));
+    if (endDate) nextParams.set("end_to", endDate.format("YYYY-MM-DD"));
+
+    if (nextParams.toString() !== searchParams.toString()) {
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [
+    endDate,
+    energyTypes,
+    location,
+    priceBounds,
+    priceRange,
+    qtyMax,
+    qtyMin,
+    searchParams,
+    setSearchParams,
+    startDate,
+  ]);
 
   const handleClear = () => {
     setEnergyTypes([]);
