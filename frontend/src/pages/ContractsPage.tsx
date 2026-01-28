@@ -8,7 +8,6 @@ import {
   Box,
   Button,
   Card,
-  CardActions,
   CardContent,
   Checkbox,
   Chip,
@@ -24,8 +23,10 @@ import {
   Slider,
   Stack,
   TextField,
+  Tooltip,
   Typography,
 } from "@mui/material";
+import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import { useSearchParams } from "react-router-dom";
 import { fetchContracts, type ContractFilters } from "../api/contracts";
 import { addToPortfolio } from "../api/portfolio";
@@ -347,13 +348,13 @@ export default function ContractsPage() {
         <Grid container spacing={2}>
           {data?.map((c) => (
             <Grid key={c.id} size={{ xs: 12, md: 6 }}>
-              <Card variant="outlined" sx={{ borderRadius: 3, height: "100%" }}>
-                <CardContent sx={{ pb: 1 }}>
-                  <Stack
-                    direction="row"
-                    justifyContent="space-between"
-                    alignItems="center"
-                    spacing={2}
+            <Card variant="outlined" sx={{ borderRadius: 3, height: "100%" }}>
+              <CardContent>
+                <Stack
+                  direction="row"
+                  justifyContent="space-between"
+                  alignItems="center"
+                  spacing={2}
                   >
                     <Typography variant="subtitle1" fontWeight={700}>
                       #{c.id} • {c.energy_type}
@@ -363,7 +364,7 @@ export default function ContractsPage() {
                     </Typography>
                   </Stack>
                   <Divider sx={{ my: 1.5 }} />
-                  <Stack spacing={0.5}>
+                  <Stack spacing={0.75}>
                     <Typography variant="body1">
                       {c.quantity_mwh} MWh{" "}
                       <Typography
@@ -374,26 +375,43 @@ export default function ContractsPage() {
                         @ ${c.price_per_mwh}/MWh
                       </Typography>
                     </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Delivery {c.delivery_start} → {c.delivery_end}
-                    </Typography>
+                    <Stack
+                      direction="row"
+                      alignItems="center"
+                      justifyContent="space-between"
+                      spacing={2}
+                    >
+                      <Typography variant="body2" color="text.secondary">
+                        Delivery {c.delivery_start} → {c.delivery_end}
+                      </Typography>
+                      <Tooltip title="Add to portfolio" arrow>
+                        <Button
+                          size="small"
+                          variant="contained"
+                          color="primary"
+                          aria-label="Add to portfolio"
+                          onClick={async () => {
+                            await addToPortfolio(c.id);
+                            qc.invalidateQueries({
+                              queryKey: ["portfolio-items"],
+                            });
+                            qc.invalidateQueries({
+                              queryKey: ["portfolio-metrics"],
+                            });
+                          }}
+                          sx={{
+                            minWidth: 0,
+                            paddingX: 1,
+                          }}
+                        >
+                          <AddRoundedIcon fontSize="small" />
+                        </Button>
+                      </Tooltip>
+                    </Stack>
                   </Stack>
                 </CardContent>
-                <CardActions sx={{ px: 2, pb: 2 }}>
-                  <Button
-                    variant="contained"
-                    fullWidth
-                    onClick={async () => {
-                      await addToPortfolio(c.id);
-                      qc.invalidateQueries({ queryKey: ["portfolio-items"] });
-                      qc.invalidateQueries({ queryKey: ["portfolio-metrics"] });
-                    }}
-                  >
-                    Add to Portfolio
-                  </Button>
-                </CardActions>
-              </Card>
-            </Grid>
+            </Card>
+          </Grid>
           ))}
         </Grid>
       )}
