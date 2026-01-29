@@ -1,11 +1,11 @@
 from datetime import date
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, func
 
 from app.db.session import get_db
 from app.models.contract import Contract, EnergyType, ContractStatus
-from app.schemas.contract import ContractCreate, ContractOut, ContractUpdate
+from app.schemas.contract import ContractCreate, ContractOut, ContractUpdate, ContractListOut
 
 router = APIRouter(prefix="/contracts", tags=["contracts"])
 
@@ -22,7 +22,7 @@ def create_contract(payload: ContractCreate, db: Session = Depends(get_db)):
     db.refresh(c)
     return c
 
-@router.get("", response_model=list[ContractOut])
+@router.get("", response_model=ContractListOut)
 def list_contracts(
     db: Session = Depends(get_db),
     energy_type: list[EnergyType] | None = Query(default=None),
@@ -30,6 +30,8 @@ def list_contracts(
     status: ContractStatus | None = ContractStatus.Available,
     sort_by: str | None = None,
     sort_dir: str = "desc",
+    page: int = 1,
+    page_size: int = 20,
     price_min: float | None = None,
     price_max: float | None = None,
     qty_min: int | None = None,
@@ -45,6 +47,10 @@ def list_contracts(
         raise HTTPException(status_code=400, detail="start_from cannot be after end_to")
     if sort_dir not in ("asc", "desc"):
         raise HTTPException(status_code=400, detail="sort_dir must be asc or desc")
+    if page < 1:
+        raise HTTPException(status_code=400, detail="page must be >= 1")
+    if page_size < 1 or page_size > 100:
+        raise HTTPException(status_code=400, detail="page_size must be 1..100")
 
     filters = []
     if status is not None:
@@ -68,6 +74,15 @@ def list_contracts(
 
     stmt = select(Contract).where(and_(*filters)) if filters else select(Contract)
 
+    count_stmt = (
+        select(func.count())
+        .select_from(Contract)
+        .where(and_(*filters))
+        if filters
+        else select(func.count()).select_from(Contract)
+    )
+    total = db.scalar(count_stmt) or 0
+
     sort_map = {
         "price": Contract.price_per_mwh,
         "quantity": Contract.quantity_mwh,
@@ -85,7 +100,14 @@ def list_contracts(
     else:
         stmt = stmt.order_by(Contract.id.desc())
 
-    return db.scalars(stmt).all()
+    offset = (page - 1) * page_size
+    items = db.scalars(stmt.offset(offset).limit(page_size)).all()
+    return ContractListOut(
+        items=items,
+        page=page,
+        page_size=page_size,
+        total=total,
+    )
 
 @router.get("/{contract_id}", response_model=ContractOut)
 def get_contract(contract_id: int, db: Session = Depends(get_db)):

@@ -26,3 +26,9 @@ class ContractUpdate(BaseModel):
 class ContractOut(ContractBase):
     id: int
     model_config = {"from_attributes": True}
+
+class ContractListOut(BaseModel):
+    items: list[ContractOut]
+    page: int
+    page_size: int
+    total: int

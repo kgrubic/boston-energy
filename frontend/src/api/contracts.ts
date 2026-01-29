@@ -11,9 +11,19 @@ export type Contract = {
   status: string;
 };
 
+export type ContractList = {
+  items: Contract[];
+  page: number;
+  page_size: number;
+  total: number;
+};
+
 export type ContractFilters = Partial<{
   energy_type: string[]; // backend expects repeated query params: energy_type=Solar&energy_type=Wind
   location: string[]; // backend expects repeated query params
+  status: string;
+  page: number;
+  page_size: number;
   price_min: number;
   price_max: number;
   qty_min: number;
@@ -29,7 +39,7 @@ export async function fetchContracts(filters: ContractFilters) {
     if (Array.isArray(v)) v.forEach((x) => params.append(k, x));
     else params.set(k, String(v));
   }
-  const { data } = await api.get<Contract[]>(`contracts?${params.toString()}`);
+  const { data } = await api.get<ContractList>(`contracts?${params.toString()}`);
 
   return data;
 }

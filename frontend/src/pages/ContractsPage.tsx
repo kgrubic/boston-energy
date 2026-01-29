@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import type { Dayjs } from "dayjs";
@@ -19,6 +19,7 @@ import {
   InputLabel,
   ListItemText,
   MenuItem,
+  Pagination,
   Paper,
   Select,
   Slider,
@@ -47,6 +48,8 @@ const ENERGY_OPTIONS = [
 ];
 
 const DEFAULT_PRICE_RANGE: [number, number] = [0, 100];
+const PAGE_SIZE = 8;
+const BOUNDS_PAGE_SIZE = 100;
 
 const toNumberOrUndefined = (value: string) => {
   if (!value.trim()) return undefined;
@@ -54,7 +57,21 @@ const toNumberOrUndefined = (value: string) => {
   return Number.isFinite(num) ? num : undefined;
 };
 
-export default function ContractsPage() {
+const toPositiveIntOrUndefined = (value: string) => {
+  if (!value.trim()) return undefined;
+  const num = Number(value);
+  return Number.isInteger(num) && num > 0 ? num : undefined;
+};
+
+type ContractsPageProps = {
+  statusFilter?: string;
+  title?: string;
+};
+
+export default function ContractsPage({
+  statusFilter,
+  title = "Available Contracts",
+}: ContractsPageProps) {
   const qc = useQueryClient();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -83,6 +100,10 @@ export default function ContractsPage() {
     initialPriceMax ?? DEFAULT_PRICE_RANGE[1],
   ]);
   const [priceTouched, setPriceTouched] = useState(false);
+  const [page, setPage] = useState(() => {
+    const value = toPositiveIntOrUndefined(initialParams.get("page") ?? "");
+    return value ?? 1;
+  });
   const [qtyMin, setQtyMin] = useState(
     () => initialParams.get("qty_min") ?? "",
   );
@@ -107,6 +128,7 @@ export default function ContractsPage() {
 
   const filters = useMemo<ContractFilters>(() => {
     const next: ContractFilters = {};
+    if (statusFilter) next.status = statusFilter;
     if (energyTypes.length > 0) next.energy_type = energyTypes;
 
     if (locations.length > 0) next.location = locations;
@@ -123,21 +145,26 @@ export default function ContractsPage() {
 
     if (startDate) next.start_from = startDate.format("YYYY-MM-DD");
     if (endDate) next.end_to = endDate.format("YYYY-MM-DD");
+    next.page = page;
+    next.page_size = PAGE_SIZE;
 
     return next;
   }, [
     endDate,
     energyTypes,
     locations,
+    page,
     priceRange,
     priceTouched,
     qtyMaxValue,
     qtyMinValue,
     startDate,
+    statusFilter,
   ]);
 
   const filtersWithoutPrice = useMemo<ContractFilters>(() => {
     const next: ContractFilters = {};
+    if (statusFilter) next.status = statusFilter;
     if (energyTypes.length > 0) next.energy_type = energyTypes;
 
     if (locations.length > 0) next.location = locations;
@@ -147,6 +174,8 @@ export default function ContractsPage() {
 
     if (startDate) next.start_from = startDate.format("YYYY-MM-DD");
     if (endDate) next.end_to = endDate.format("YYYY-MM-DD");
+    next.page = 1;
+    next.page_size = BOUNDS_PAGE_SIZE;
 
     return next;
   }, [
@@ -156,6 +185,7 @@ export default function ContractsPage() {
     qtyMaxValue,
     qtyMinValue,
     startDate,
+    statusFilter,
   ]);
 
   const { data, isLoading, error } = useQuery({
@@ -176,9 +206,9 @@ export default function ContractsPage() {
   });
 
   const priceBounds = useMemo<[number, number]>(() => {
-    if (!boundsQ.data || boundsQ.data.length === 0)
+    if (!boundsQ.data || boundsQ.data.items.length === 0)
       return DEFAULT_PRICE_RANGE;
-    const prices = boundsQ.data.map((c) => Number(c.price_per_mwh));
+    const prices = boundsQ.data.items.map((c) => Number(c.price_per_mwh));
     return [Math.floor(Math.min(...prices)), Math.ceil(Math.max(...prices))];
   }, [boundsQ.data]);
 
@@ -187,8 +217,42 @@ export default function ContractsPage() {
     Math.min(priceBounds[1], priceRange[1]),
   ];
 
-  const resultsCount = data?.length ?? 0;
+  const resultsCount = data?.total ?? 0;
   const bounds = priceBounds;
+
+  const filterSignature = useMemo(
+    () =>
+      JSON.stringify({
+        energyTypes,
+        locations,
+        priceRange,
+        priceTouched,
+        qtyMin,
+        qtyMax,
+        startDate: startDate?.format("YYYY-MM-DD") ?? "",
+        endDate: endDate?.format("YYYY-MM-DD") ?? "",
+        statusFilter: statusFilter ?? "",
+      }),
+    [
+      endDate,
+      energyTypes,
+      locations,
+      priceRange,
+      priceTouched,
+      qtyMax,
+      qtyMin,
+      startDate,
+      statusFilter,
+    ],
+  );
+  const prevFilterSignature = useRef(filterSignature);
+
+  useEffect(() => {
+    if (prevFilterSignature.current !== filterSignature) {
+      prevFilterSignature.current = filterSignature;
+      setPage(1);
+    }
+  }, [filterSignature]);
 
   useEffect(() => {
     const [min, max] = priceBounds;
@@ -227,6 +291,7 @@ export default function ContractsPage() {
 
     if (startDate) nextParams.set("start_from", startDate.format("YYYY-MM-DD"));
     if (endDate) nextParams.set("end_to", endDate.format("YYYY-MM-DD"));
+    if (page > 1) nextParams.set("page", String(page));
 
     if (nextParams.toString() !== searchParams.toString()) {
       setSearchParams(nextParams, { replace: true });
@@ -242,6 +307,7 @@ export default function ContractsPage() {
     searchParams,
     setSearchParams,
     startDate,
+    page,
   ]);
 
   const handleClear = () => {
@@ -253,6 +319,7 @@ export default function ContractsPage() {
     setEndDate(null);
     setPriceTouched(false);
     setPriceRange(DEFAULT_PRICE_RANGE);
+    setPage(1);
   };
 
   return (
@@ -265,7 +332,7 @@ export default function ContractsPage() {
       >
         <div>
           <Typography variant="h5" fontWeight={700}>
-            Available Contracts
+            {title}
           </Typography>
           <Typography variant="body2" color="text.secondary">
             Matches: {resultsCount}
@@ -427,7 +494,7 @@ export default function ContractsPage() {
         <Alert severity="error">Unable to load contracts. Try again.</Alert>
       ) : (
         <Grid container spacing={2}>
-          {data?.map((c) => (
+          {data?.items.map((c) => (
             <Grid key={c.id} size={{ xs: 12, md: 6 }}>
               <Card variant="outlined" sx={{ borderRadius: 3, height: "100%" }}>
                 <CardContent>
@@ -522,6 +589,16 @@ export default function ContractsPage() {
           ))}
         </Grid>
       )}
+      {data && data.total > data.page_size ? (
+        <Stack alignItems="center" sx={{ pt: 1 }}>
+          <Pagination
+            count={Math.max(1, Math.ceil(data.total / data.page_size))}
+            page={page}
+            onChange={(_, value) => setPage(value)}
+            color="primary"
+          />
+        </Stack>
+      ) : null}
     </Stack>
   );
 }
