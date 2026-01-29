@@ -442,7 +442,7 @@ export default function ContractsPage() {
                         <Button
                           size="small"
                           component={Link}
-                          to={`/contracts/${c.id}`}
+                          to={`/contract/${c.id}`}
                           state={{
                             from: `${location.pathname}${location.search}`,
                           }}

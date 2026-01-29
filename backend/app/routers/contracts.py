@@ -28,6 +28,8 @@ def list_contracts(
     energy_type: list[EnergyType] | None = Query(default=None),
     location: list[str] | None = Query(default=None),
     status: ContractStatus | None = ContractStatus.Available,
+    sort_by: str | None = None,
+    sort_dir: str = "desc",
     price_min: float | None = None,
     price_max: float | None = None,
     qty_min: int | None = None,
@@ -41,6 +43,8 @@ def list_contracts(
         raise HTTPException(status_code=400, detail="qty_min cannot be greater than qty_max")
     if start_from is not None and end_to is not None and start_from > end_to:
         raise HTTPException(status_code=400, detail="start_from cannot be after end_to")
+    if sort_dir not in ("asc", "desc"):
+        raise HTTPException(status_code=400, detail="sort_dir must be asc or desc")
 
     filters = []
     if status is not None:
@@ -63,7 +67,25 @@ def list_contracts(
         filters.append(Contract.delivery_end <= end_to)
 
     stmt = select(Contract).where(and_(*filters)) if filters else select(Contract)
-    return db.scalars(stmt.order_by(Contract.id.desc())).all()
+
+    sort_map = {
+        "price": Contract.price_per_mwh,
+        "quantity": Contract.quantity_mwh,
+        "date": Contract.delivery_start,
+    }
+    if sort_by:
+        if sort_by not in sort_map:
+            raise HTTPException(
+                status_code=400,
+                detail="sort_by must be one of: price, quantity, date",
+            )
+        sort_col = sort_map[sort_by]
+        order = sort_col.asc() if sort_dir == "asc" else sort_col.desc()
+        stmt = stmt.order_by(order)
+    else:
+        stmt = stmt.order_by(Contract.id.desc())
+
+    return db.scalars(stmt).all()
 
 @router.get("/{contract_id}", response_model=ContractOut)
 def get_contract(contract_id: int, db: Session = Depends(get_db)):

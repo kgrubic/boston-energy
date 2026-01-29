@@ -13,7 +13,7 @@ import {
   Toolbar,
   Typography,
 } from "@mui/material";
-import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { useNotifications } from "./contexts/NotificationContext";
 
 export default function App() {
@@ -53,7 +53,7 @@ export default function App() {
             <Tabs
               value={tabIndex}
               onChange={(_, value) =>
-                navigate(value === 0 ? "/contracts" : "/portfolio")
+                navigate(value === 0 ? "/" : "/portfolio")
               }
               textColor="primary"
               indicatorColor="primary"
@@ -67,9 +67,8 @@ export default function App() {
           </Toolbar>
         </AppBar>
         <Routes>
-          <Route path="/" element={<Navigate to="/contracts" replace />} />
-          <Route path="/contracts" element={<ContractsPage />} />
-          <Route path="/contracts/:contractId" element={<ContractDetailsPage />} />
+          <Route path="/" element={<ContractsPage title="Available Contracts" />} />
+          <Route path="/contract/:contractId" element={<ContractDetailsPage />} />
           <Route path="/portfolio" element={<PortfolioPage />} />
         </Routes>
       </Container>
