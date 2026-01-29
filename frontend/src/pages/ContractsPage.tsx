@@ -28,7 +28,7 @@ import {
   Typography,
 } from "@mui/material";
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
-import { useSearchParams } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import {
   fetchContractLocations,
   fetchContracts,
@@ -56,6 +56,7 @@ const toNumberOrUndefined = (value: string) => {
 
 export default function ContractsPage() {
   const qc = useQueryClient();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const { notify } = useNotifications();
   const [initialParams] = useState(
@@ -395,9 +396,24 @@ export default function ContractsPage() {
                     alignItems="center"
                     spacing={2}
                   >
-                    <Typography variant="subtitle1" fontWeight={700}>
-                      #{c.id} • {c.energy_type}
-                    </Typography>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <Tooltip title="View details" arrow>
+                        <Button
+                          size="small"
+                          component={Link}
+                          to={`/contracts/${c.id}`}
+                          state={{
+                            from: `${location.pathname}${location.search}`,
+                          }}
+                          sx={{ minWidth: 0, paddingX: 1 }}
+                        >
+                          #{c.id}
+                        </Button>
+                      </Tooltip>
+                      <Typography variant="subtitle1" fontWeight={700}>
+                        • {c.energy_type}
+                      </Typography>
+                    </Stack>
                     <Typography variant="body2" color="text.secondary">
                       {c.location}
                     </Typography>

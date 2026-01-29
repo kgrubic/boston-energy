@@ -38,3 +38,8 @@ export async function fetchContractLocations() {
   const { data } = await api.get<string[]>("/contracts/locations");
   return data;
 }
+
+export async function fetchContractById(contractId: number) {
+  const { data } = await api.get<Contract>(`/contracts/${contractId}`);
+  return data;
+}

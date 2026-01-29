@@ -1,5 +1,6 @@
 import ContractsPage from "./pages/ContractsPage";
 import PortfolioPage from "./pages/PortfolioPage";
+import ContractDetailsPage from "./pages/ContractDetailsPage";
 import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
 import {
   Alert,
@@ -68,6 +69,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/contracts" replace />} />
           <Route path="/contracts" element={<ContractsPage />} />
+          <Route path="/contracts/:contractId" element={<ContractDetailsPage />} />
           <Route path="/portfolio" element={<PortfolioPage />} />
         </Routes>
       </Container>
