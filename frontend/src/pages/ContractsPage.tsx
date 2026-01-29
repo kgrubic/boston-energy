@@ -136,9 +136,37 @@ export default function ContractsPage() {
     startDate,
   ]);
 
+  const filtersWithoutPrice = useMemo<ContractFilters>(() => {
+    const next: ContractFilters = {};
+    if (energyTypes.length > 0) next.energy_type = energyTypes;
+
+    if (locations.length > 0) next.location = locations;
+
+    if (qtyMinValue !== undefined) next.qty_min = qtyMinValue;
+    if (qtyMaxValue !== undefined) next.qty_max = qtyMaxValue;
+
+    if (startDate) next.start_from = startDate.format("YYYY-MM-DD");
+    if (endDate) next.end_to = endDate.format("YYYY-MM-DD");
+
+    return next;
+  }, [
+    endDate,
+    energyTypes,
+    locations,
+    qtyMaxValue,
+    qtyMinValue,
+    startDate,
+  ]);
+
   const { data, isLoading, error } = useQuery({
     queryKey: ["contracts", filters],
     queryFn: () => fetchContracts(filters),
+    enabled: !qtyRangeInvalid,
+  });
+
+  const boundsQ = useQuery({
+    queryKey: ["contracts-price-bounds", filtersWithoutPrice],
+    queryFn: () => fetchContracts(filtersWithoutPrice),
     enabled: !qtyRangeInvalid,
   });
 
@@ -148,10 +176,11 @@ export default function ContractsPage() {
   });
 
   const priceBounds = useMemo<[number, number]>(() => {
-    if (!data || data.length === 0) return DEFAULT_PRICE_RANGE;
-    const prices = data.map((c) => Number(c.price_per_mwh));
+    if (!boundsQ.data || boundsQ.data.length === 0)
+      return DEFAULT_PRICE_RANGE;
+    const prices = boundsQ.data.map((c) => Number(c.price_per_mwh));
     return [Math.floor(Math.min(...prices)), Math.ceil(Math.max(...prices))];
-  }, [data]);
+  }, [boundsQ.data]);
 
   const clampedPriceRange: [number, number] = [
     Math.max(priceBounds[0], priceRange[0]),
@@ -160,6 +189,18 @@ export default function ContractsPage() {
 
   const resultsCount = data?.length ?? 0;
   const bounds = priceBounds;
+
+  useEffect(() => {
+    const [min, max] = priceBounds;
+    if (!hasInitialPriceParams && !priceTouched) {
+      setPriceRange([min, max]);
+      return;
+    }
+    setPriceRange((prev) => [
+      Math.max(min, prev[0]),
+      Math.min(max, prev[1]),
+    ]);
+  }, [hasInitialPriceParams, priceBounds, priceTouched]);
 
   useEffect(() => {
     const nextParams = new URLSearchParams();
