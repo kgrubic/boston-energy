@@ -1,5 +1,4 @@
 import ContractsPage from "./pages/ContractsPage";
-import { useState } from "react";
 import PortfolioPage from "./pages/PortfolioPage";
 import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
 import {
@@ -13,11 +12,13 @@ import {
   Toolbar,
   Typography,
 } from "@mui/material";
+import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { useNotifications } from "./contexts/NotificationContext";
 
 export default function App() {
-  const [tab, setTab] = useState<"contracts" | "portfolio">("contracts");
-  const tabIndex = tab === "contracts" ? 0 : 1;
+  const location = useLocation();
+  const navigate = useNavigate();
+  const tabIndex = location.pathname.startsWith("/portfolio") ? 1 : 0;
   const { notifications, remove } = useNotifications();
 
   return (
@@ -51,7 +52,7 @@ export default function App() {
             <Tabs
               value={tabIndex}
               onChange={(_, value) =>
-                setTab(value === 0 ? "contracts" : "portfolio")
+                navigate(value === 0 ? "/contracts" : "/portfolio")
               }
               textColor="primary"
               indicatorColor="primary"
@@ -64,7 +65,11 @@ export default function App() {
             </Tabs>
           </Toolbar>
         </AppBar>
-        {tab === "contracts" ? <ContractsPage /> : <PortfolioPage />}
+        <Routes>
+          <Route path="/" element={<Navigate to="/contracts" replace />} />
+          <Route path="/contracts" element={<ContractsPage />} />
+          <Route path="/portfolio" element={<PortfolioPage />} />
+        </Routes>
       </Container>
       {notifications.map((note, index) => (
         <Snackbar
