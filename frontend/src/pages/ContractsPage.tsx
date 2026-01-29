@@ -1,10 +1,11 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import type { Dayjs } from "dayjs";
 import dayjs from "dayjs";
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Card,
@@ -28,7 +29,11 @@ import {
 } from "@mui/material";
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import { useSearchParams } from "react-router-dom";
-import { fetchContracts, type ContractFilters } from "../api/contracts";
+import {
+  fetchContractLocations,
+  fetchContracts,
+  type ContractFilters,
+} from "../api/contracts";
 import { addToPortfolio } from "../api/portfolio";
 
 const ENERGY_OPTIONS = [
@@ -51,23 +56,19 @@ const toNumberOrUndefined = (value: string) => {
 export default function ContractsPage() {
   const qc = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialParamsRef = useRef<URLSearchParams | null>(null);
-  if (!initialParamsRef.current) {
-    initialParamsRef.current = new URLSearchParams(window.location.search);
-  }
-  const initialParams = initialParamsRef.current;
-  const hasInitialPriceParamsRef = useRef(
-    initialParams.has("price_min") || initialParams.has("price_max"),
+  const [initialParams] = useState(
+    () => new URLSearchParams(window.location.search),
+  );
+  const [hasInitialPriceParams] = useState(
+    () => initialParams.has("price_min") || initialParams.has("price_max"),
   );
 
-  const [energyTypes, setEnergyTypes] = useState<string[]>(
+  const [energyTypes, setEnergyTypes] = useState<string[]>(() =>
     initialParams.getAll("energy_type"),
   );
-  const [location, setLocation] = useState(
-    initialParams.get("location") ?? "",
+  const [locations, setLocations] = useState<string[]>(() =>
+    initialParams.getAll("location"),
   );
-  const deferredLocation = useDeferredValue(location);
-  const [priceBounds, setPriceBounds] = useState<[number, number] | null>(null);
   const initialPriceMin = toNumberOrUndefined(
     initialParams.get("price_min") ?? "",
   );
@@ -78,11 +79,12 @@ export default function ContractsPage() {
     initialPriceMin ?? DEFAULT_PRICE_RANGE[0],
     initialPriceMax ?? DEFAULT_PRICE_RANGE[1],
   ]);
+  const [priceTouched, setPriceTouched] = useState(false);
   const [qtyMin, setQtyMin] = useState(
-    initialParams.get("qty_min") ?? "",
+    () => initialParams.get("qty_min") ?? "",
   );
   const [qtyMax, setQtyMax] = useState(
-    initialParams.get("qty_max") ?? "",
+    () => initialParams.get("qty_max") ?? "",
   );
   const [startDate, setStartDate] = useState<Dayjs | null>(() => {
     const value = initialParams.get("start_from");
@@ -93,22 +95,27 @@ export default function ContractsPage() {
     return value ? dayjs(value) : null;
   });
 
+  const qtyMinValue = toNumberOrUndefined(qtyMin);
+  const qtyMaxValue = toNumberOrUndefined(qtyMax);
+  const qtyRangeInvalid =
+    qtyMinValue !== undefined &&
+    qtyMaxValue !== undefined &&
+    qtyMaxValue < qtyMinValue;
+
   const filters = useMemo<ContractFilters>(() => {
     const next: ContractFilters = {};
     if (energyTypes.length > 0) next.energy_type = energyTypes;
 
-    const trimmedLocation = deferredLocation.trim();
-    if (trimmedLocation) next.location = trimmedLocation;
+    if (locations.length > 0) next.location = locations;
 
-    if (priceBounds) {
+    const shouldUsePriceFilter = hasInitialPriceParams || priceTouched;
+    if (shouldUsePriceFilter) {
       const [minPrice, maxPrice] = priceRange;
-      if (minPrice !== priceBounds[0]) next.price_min = minPrice;
-      if (maxPrice !== priceBounds[1]) next.price_max = maxPrice;
+      next.price_min = minPrice;
+      next.price_max = maxPrice;
     }
 
-    const qtyMinValue = toNumberOrUndefined(qtyMin);
     if (qtyMinValue !== undefined) next.qty_min = qtyMinValue;
-    const qtyMaxValue = toNumberOrUndefined(qtyMax);
     if (qtyMaxValue !== undefined) next.qty_max = qtyMaxValue;
 
     if (startDate) next.start_from = startDate.format("YYYY-MM-DD");
@@ -116,41 +123,40 @@ export default function ContractsPage() {
 
     return next;
   }, [
-    deferredLocation,
     endDate,
     energyTypes,
-    priceBounds,
+    locations,
     priceRange,
-    qtyMax,
-    qtyMin,
+    priceTouched,
+    qtyMaxValue,
+    qtyMinValue,
     startDate,
   ]);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["contracts", filters],
     queryFn: () => fetchContracts(filters),
+    enabled: !qtyRangeInvalid,
   });
 
-  useEffect(() => {
-    if (!priceBounds && data && data.length > 0) {
-      const prices = data.map((c) => Number(c.price_per_mwh));
-      const minPrice = Math.floor(Math.min(...prices));
-      const maxPrice = Math.ceil(Math.max(...prices));
-      const nextBounds: [number, number] = [minPrice, maxPrice];
-      setPriceBounds(nextBounds);
-      setPriceRange((prev) => {
-        const hasInitialPriceParams = hasInitialPriceParamsRef.current;
-        if (!hasInitialPriceParams) return nextBounds;
-        return [
-          Math.max(nextBounds[0], prev[0]),
-          Math.min(nextBounds[1], prev[1]),
-        ];
-      });
-    }
-  }, [data, priceBounds]);
+  const locationsQ = useQuery({
+    queryKey: ["contract-locations"],
+    queryFn: fetchContractLocations,
+  });
+
+  const priceBounds = useMemo<[number, number]>(() => {
+    if (!data || data.length === 0) return DEFAULT_PRICE_RANGE;
+    const prices = data.map((c) => Number(c.price_per_mwh));
+    return [Math.floor(Math.min(...prices)), Math.ceil(Math.max(...prices))];
+  }, [data]);
+
+  const clampedPriceRange: [number, number] = [
+    Math.max(priceBounds[0], priceRange[0]),
+    Math.min(priceBounds[1], priceRange[1]),
+  ];
 
   const resultsCount = data?.length ?? 0;
-  const bounds = priceBounds ?? DEFAULT_PRICE_RANGE;
+  const bounds = priceBounds;
 
   useEffect(() => {
     const nextParams = new URLSearchParams();
@@ -158,22 +164,22 @@ export default function ContractsPage() {
       energyTypes.forEach((value) => nextParams.append("energy_type", value));
     }
 
-    const trimmedLocation = location.trim();
-    if (trimmedLocation) nextParams.set("location", trimmedLocation);
+    if (locations.length > 0) {
+      locations.forEach((value) => nextParams.append("location", value));
+    }
 
-    if (priceBounds) {
-      if (priceRange[0] !== priceBounds[0]) {
-        nextParams.set("price_min", String(priceRange[0]));
-      }
-      if (priceRange[1] !== priceBounds[1]) {
-        nextParams.set("price_max", String(priceRange[1]));
-      }
+    const shouldUsePriceFilter = hasInitialPriceParams || priceTouched;
+    if (shouldUsePriceFilter) {
+      nextParams.set("price_min", String(priceRange[0]));
+      nextParams.set("price_max", String(priceRange[1]));
     }
 
     const qtyMinValue = toNumberOrUndefined(qtyMin);
-    if (qtyMinValue !== undefined) nextParams.set("qty_min", String(qtyMinValue));
+    if (qtyMinValue !== undefined)
+      nextParams.set("qty_min", String(qtyMinValue));
     const qtyMaxValue = toNumberOrUndefined(qtyMax);
-    if (qtyMaxValue !== undefined) nextParams.set("qty_max", String(qtyMaxValue));
+    if (qtyMaxValue !== undefined)
+      nextParams.set("qty_max", String(qtyMaxValue));
 
     if (startDate) nextParams.set("start_from", startDate.format("YYYY-MM-DD"));
     if (endDate) nextParams.set("end_to", endDate.format("YYYY-MM-DD"));
@@ -184,9 +190,9 @@ export default function ContractsPage() {
   }, [
     endDate,
     energyTypes,
-    location,
-    priceBounds,
+    locations,
     priceRange,
+    priceTouched,
     qtyMax,
     qtyMin,
     searchParams,
@@ -196,12 +202,13 @@ export default function ContractsPage() {
 
   const handleClear = () => {
     setEnergyTypes([]);
-    setLocation("");
+    setLocations([]);
     setQtyMin("");
     setQtyMax("");
     setStartDate(null);
     setEndDate(null);
-    setPriceRange(priceBounds ?? DEFAULT_PRICE_RANGE);
+    setPriceTouched(false);
+    setPriceRange(DEFAULT_PRICE_RANGE);
   };
 
   return (
@@ -243,7 +250,18 @@ export default function ContractsPage() {
                 renderValue={(selected) => (
                   <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
                     {selected.map((value) => (
-                      <Chip key={value} label={value} size="small" />
+                      <Chip
+                        key={value}
+                        label={value}
+                        size="small"
+                        onDelete={(event) => {
+                          event.stopPropagation();
+                          setEnergyTypes((prev) =>
+                            prev.filter((item) => item !== value),
+                          );
+                        }}
+                        onMouseDown={(event) => event.stopPropagation()}
+                      />
                     ))}
                   </Box>
                 )}
@@ -259,11 +277,26 @@ export default function ContractsPage() {
           </Grid>
 
           <Grid size={{ xs: 12, md: 4 }}>
-            <TextField
-              fullWidth
-              label="Location"
-              value={location}
-              onChange={(event) => setLocation(event.target.value)}
+            <Autocomplete
+              options={locationsQ.data ?? []}
+              multiple
+              value={locations}
+              onChange={(_, value) => setLocations(value)}
+              disableCloseOnSelect
+              renderOption={(props, option, { selected }) => (
+                <li {...props}>
+                  <Checkbox checked={selected} sx={{ mr: 1 }} />
+                  {option}
+                </li>
+              )}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  fullWidth
+                  label="Locations"
+                  placeholder="Select locations"
+                />
+              )}
             />
           </Grid>
 
@@ -272,28 +305,28 @@ export default function ContractsPage() {
               Price range ($/MWh)
             </Typography>
             <Slider
-              value={priceRange}
+              value={clampedPriceRange}
               min={bounds[0]}
               max={bounds[1]}
-              onChange={(_, value) =>
-                setPriceRange(value as [number, number])
-              }
+              onChange={(_, value) => {
+                setPriceTouched(true);
+                setPriceRange(value as [number, number]);
+              }}
               valueLabelDisplay="auto"
               valueLabelFormat={(value) => `$${value}`}
               disableSwap
-              disabled={!priceBounds}
             />
             <Stack direction="row" justifyContent="space-between">
               <Typography variant="caption" color="text.secondary">
-                ${priceRange[0]}
+                ${clampedPriceRange[0]}
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                ${priceRange[1]}
+                ${clampedPriceRange[1]}
               </Typography>
             </Stack>
           </Grid>
 
-          <Grid size={{ xs: 12, md: 3 }}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <TextField
               fullWidth
               label="Quantity min (MWh)"
@@ -301,9 +334,11 @@ export default function ContractsPage() {
               value={qtyMin}
               onChange={(event) => setQtyMin(event.target.value)}
               inputProps={{ min: 0 }}
+              error={qtyRangeInvalid}
+              helperText={qtyRangeInvalid ? "Min must be ≤ max" : " "}
             />
           </Grid>
-          <Grid size={{ xs: 12, md: 3 }}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <TextField
               fullWidth
               label="Quantity max (MWh)"
@@ -311,22 +346,24 @@ export default function ContractsPage() {
               value={qtyMax}
               onChange={(event) => setQtyMax(event.target.value)}
               inputProps={{ min: 0 }}
+              error={qtyRangeInvalid}
+              helperText={qtyRangeInvalid ? "Max must be ≥ min" : " "}
             />
           </Grid>
-          <Grid size={{ xs: 12, md: 3 }}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <DatePicker
               label="Delivery start"
               value={startDate}
               onChange={setStartDate}
-              slotProps={{ textField: { fullWidth: true } }}
+              slotProps={{ textField: { fullWidth: true, helperText: " " } }}
             />
           </Grid>
-          <Grid size={{ xs: 12, md: 3 }}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <DatePicker
               label="Delivery end"
               value={endDate}
               onChange={setEndDate}
-              slotProps={{ textField: { fullWidth: true } }}
+              slotProps={{ textField: { fullWidth: true, helperText: " " } }}
             />
           </Grid>
 
@@ -348,13 +385,13 @@ export default function ContractsPage() {
         <Grid container spacing={2}>
           {data?.map((c) => (
             <Grid key={c.id} size={{ xs: 12, md: 6 }}>
-            <Card variant="outlined" sx={{ borderRadius: 3, height: "100%" }}>
-              <CardContent>
-                <Stack
-                  direction="row"
-                  justifyContent="space-between"
-                  alignItems="center"
-                  spacing={2}
+              <Card variant="outlined" sx={{ borderRadius: 3, height: "100%" }}>
+                <CardContent>
+                  <Stack
+                    direction="row"
+                    justifyContent="space-between"
+                    alignItems="center"
+                    spacing={2}
                   >
                     <Typography variant="subtitle1" fontWeight={700}>
                       #{c.id} • {c.energy_type}
@@ -410,8 +447,8 @@ export default function ContractsPage() {
                     </Stack>
                   </Stack>
                 </CardContent>
-            </Card>
-          </Grid>
+              </Card>
+            </Grid>
           ))}
         </Grid>
       )}

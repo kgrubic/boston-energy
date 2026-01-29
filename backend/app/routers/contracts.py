@@ -9,6 +9,11 @@ from app.schemas.contract import ContractCreate, ContractOut, ContractUpdate
 
 router = APIRouter(prefix="/contracts", tags=["contracts"])
 
+@router.get("/locations", response_model=list[str])
+def list_locations(db: Session = Depends(get_db)):
+    stmt = select(Contract.location).distinct().order_by(Contract.location.asc())
+    return db.scalars(stmt).all()
+
 @router.post("", response_model=ContractOut, status_code=201)
 def create_contract(payload: ContractCreate, db: Session = Depends(get_db)):
     c = Contract(**payload.model_dump())
@@ -21,7 +26,7 @@ def create_contract(payload: ContractCreate, db: Session = Depends(get_db)):
 def list_contracts(
     db: Session = Depends(get_db),
     energy_type: list[EnergyType] | None = Query(default=None),
-    location: str | None = None,
+    location: list[str] | None = Query(default=None),
     status: ContractStatus | None = ContractStatus.Available,
     price_min: float | None = None,
     price_max: float | None = None,
@@ -43,7 +48,7 @@ def list_contracts(
     if energy_type:
         filters.append(Contract.energy_type.in_(energy_type))
     if location:
-        filters.append(Contract.location == location)
+        filters.append(Contract.location.in_(location))
     if price_min is not None:
         filters.append(Contract.price_per_mwh >= price_min)
     if price_max is not None:
