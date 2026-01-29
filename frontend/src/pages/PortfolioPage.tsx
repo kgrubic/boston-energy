@@ -16,6 +16,7 @@ import Accordion from "@mui/material/Accordion";
 import AccordionSummary from "@mui/material/AccordionSummary";
 import AccordionDetails from "@mui/material/AccordionDetails";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
+import { useNotifications } from "../contexts/NotificationContext";
 import {
   fetchPortfolioItems,
   fetchPortfolioMetrics,
@@ -24,6 +25,7 @@ import {
 
 export default function PortfolioPage() {
   const qc = useQueryClient();
+  const { notify } = useNotifications();
 
   const itemsQ = useQuery({
     queryKey: ["portfolio-items"],
@@ -182,9 +184,22 @@ export default function PortfolioPage() {
                       color="error"
                       aria-label="Remove from portfolio"
                       onClick={async () => {
-                        await removeFromPortfolio(it.contract.id);
-                        qc.invalidateQueries({ queryKey: ["portfolio-items"] });
-                        qc.invalidateQueries({ queryKey: ["portfolio-metrics"] });
+                        try {
+                          await removeFromPortfolio(it.contract.id);
+                          qc.invalidateQueries({ queryKey: ["portfolio-items"] });
+                          qc.invalidateQueries({
+                            queryKey: ["portfolio-metrics"],
+                          });
+                          notify({
+                            message: `Removed contract #${it.contract.id}`,
+                            severity: "success",
+                          });
+                        } catch {
+                          notify({
+                            message: "Failed to remove contract",
+                            severity: "error",
+                          });
+                        }
                       }}
                       size="small"
                     >
