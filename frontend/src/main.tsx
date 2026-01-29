@@ -7,6 +7,7 @@ import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
+import { NotificationProvider } from "./contexts/NotificationContext";
 
 const qc = new QueryClient();
 const theme = createTheme({
@@ -28,8 +29,10 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       <ThemeProvider theme={theme}>
         <LocalizationProvider dateAdapter={AdapterDayjs}>
           <BrowserRouter>
-            <CssBaseline />
-            <App />
+            <NotificationProvider>
+              <CssBaseline />
+              <App />
+            </NotificationProvider>
           </BrowserRouter>
         </LocalizationProvider>
       </ThemeProvider>

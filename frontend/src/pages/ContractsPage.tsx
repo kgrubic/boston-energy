@@ -35,6 +35,7 @@ import {
   type ContractFilters,
 } from "../api/contracts";
 import { addToPortfolio } from "../api/portfolio";
+import { useNotifications } from "../contexts/NotificationContext";
 
 const ENERGY_OPTIONS = [
   "Solar",
@@ -56,6 +57,7 @@ const toNumberOrUndefined = (value: string) => {
 export default function ContractsPage() {
   const qc = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { notify } = useNotifications();
   const [initialParams] = useState(
     () => new URLSearchParams(window.location.search),
   );
@@ -428,13 +430,24 @@ export default function ContractsPage() {
                           color="primary"
                           aria-label="Add to portfolio"
                           onClick={async () => {
-                            await addToPortfolio(c.id);
-                            qc.invalidateQueries({
-                              queryKey: ["portfolio-items"],
-                            });
-                            qc.invalidateQueries({
-                              queryKey: ["portfolio-metrics"],
-                            });
+                            try {
+                              await addToPortfolio(c.id);
+                              qc.invalidateQueries({
+                                queryKey: ["portfolio-items"],
+                              });
+                              qc.invalidateQueries({
+                                queryKey: ["portfolio-metrics"],
+                              });
+                              notify({
+                                message: `Added contract #${c.id} to portfolio`,
+                                severity: "success",
+                              });
+                            } catch {
+                              notify({
+                                message: "Failed to add contract to portfolio",
+                                severity: "error",
+                              });
+                            }
                           }}
                           sx={{
                             minWidth: 0,

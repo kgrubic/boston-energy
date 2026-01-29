@@ -2,11 +2,23 @@ import ContractsPage from "./pages/ContractsPage";
 import { useState } from "react";
 import PortfolioPage from "./pages/PortfolioPage";
 import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
-import { AppBar, Box, Container, Tab, Tabs, Toolbar, Typography } from "@mui/material";
+import {
+  Alert,
+  AppBar,
+  Box,
+  Container,
+  Snackbar,
+  Tab,
+  Tabs,
+  Toolbar,
+  Typography,
+} from "@mui/material";
+import { useNotifications } from "./contexts/NotificationContext";
 
 export default function App() {
   const [tab, setTab] = useState<"contracts" | "portfolio">("contracts");
   const tabIndex = tab === "contracts" ? 0 : 1;
+  const { notifications, remove } = useNotifications();
 
   return (
     <Box
@@ -54,6 +66,24 @@ export default function App() {
         </AppBar>
         {tab === "contracts" ? <ContractsPage /> : <PortfolioPage />}
       </Container>
+      {notifications.map((note, index) => (
+        <Snackbar
+          key={note.id}
+          open
+          anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+          onClose={() => remove(note.id)}
+          autoHideDuration={5000}
+          sx={{ bottom: 24 + index * 72 }}
+        >
+          <Alert
+            severity={note.severity}
+            variant="filled"
+            onClose={() => remove(note.id)}
+          >
+            {note.message}
+          </Alert>
+        </Snackbar>
+      ))}
     </Box>
   );
 }
