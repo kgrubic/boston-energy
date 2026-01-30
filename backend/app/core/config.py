@@ -6,6 +6,8 @@ class Settings(BaseSettings):
     ENV: str = "dev"
     DATABASE_URL: str
     CORS_ORIGINS: str = "http://localhost:5173,https://kgrubic.github.io"
+    JWT_SECRET: str = "dev-secret-change-me"
+    JWT_EXPIRES_MINUTES: int = 60
 
     @property
     def cors_origins_list(self) -> list[str]:

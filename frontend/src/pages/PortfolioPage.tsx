@@ -37,12 +37,19 @@ export default function PortfolioPage() {
     queryFn: fetchPortfolioMetrics,
   });
 
+  const isUnauthorized =
+    (itemsQ.error as any)?.response?.status === 401 ||
+    (metricsQ.error as any)?.response?.status === 401;
+
   if (itemsQ.isLoading || metricsQ.isLoading)
     return (
       <Stack alignItems="center" justifyContent="center" sx={{ py: 8 }}>
         <CircularProgress />
       </Stack>
     );
+  if (isUnauthorized) {
+    return <Alert severity="warning">Please log in to view your portfolio.</Alert>;
+  }
   if (itemsQ.error || metricsQ.error)
     return <Alert severity="error">Unable to load portfolio.</Alert>;
 

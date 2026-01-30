@@ -76,6 +76,9 @@ export default function ContractsPage({
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const { notify } = useNotifications();
+  const [isAuthed, setIsAuthed] = useState(
+    Boolean(localStorage.getItem("auth_token")),
+  );
   const [initialParams] = useState(
     () => new URLSearchParams(window.location.search),
   );
@@ -213,18 +216,19 @@ export default function ContractsPage({
   const { data, isLoading, error } = useQuery({
     queryKey: ["contracts", filters],
     queryFn: () => fetchContracts(filters),
-    enabled: !qtyRangeInvalid,
+    enabled: !qtyRangeInvalid && isAuthed,
   });
 
   const boundsQ = useQuery({
     queryKey: ["contracts-price-bounds", filtersWithoutPrice],
     queryFn: () => fetchContractPriceBounds(filtersWithoutPrice),
-    enabled: !qtyRangeInvalid,
+    enabled: !qtyRangeInvalid && isAuthed,
   });
 
   const locationsQ = useQuery({
     queryKey: ["contract-locations"],
     queryFn: fetchContractLocations,
+    enabled: isAuthed,
   });
 
   const priceBounds = useMemo<[number, number]>(() => {
@@ -287,6 +291,17 @@ export default function ContractsPage({
       setPage(1);
     }
   }, [filterSignature]);
+
+  useEffect(() => {
+    const handler = () =>
+      setIsAuthed(Boolean(localStorage.getItem("auth_token")));
+    window.addEventListener("auth-change", handler);
+    window.addEventListener("storage", handler);
+    return () => {
+      window.removeEventListener("auth-change", handler);
+      window.removeEventListener("storage", handler);
+    };
+  }, []);
 
   useEffect(() => {
     const [min, max] = priceBounds;
@@ -378,6 +393,10 @@ export default function ContractsPage({
     setSortDir("desc");
     setPage(1);
   };
+
+  if (!isAuthed) {
+    return <Alert severity="warning">Not authorized.</Alert>;
+  }
 
   return (
     <Stack spacing={2}>

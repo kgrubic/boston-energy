@@ -1,12 +1,15 @@
+import { useEffect, useState } from "react";
 import ContractsPage from "./pages/ContractsPage";
 import PortfolioPage from "./pages/PortfolioPage";
 import ContractDetailsPage from "./pages/ContractDetailsPage";
 import HomePage from "./pages/HomePage";
 import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
+import LoginPage from "./pages/LoginPage";
 import {
   Alert,
   AppBar,
   Box,
+  Button,
   Container,
   Snackbar,
   Tab,
@@ -27,12 +30,34 @@ import { useNotifications } from "./contexts/NotificationContext";
 export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
+  const [isAuthed, setIsAuthed] = useState(
+    Boolean(localStorage.getItem("auth_token")),
+  );
   const tabIndex = location.pathname.startsWith("/portfolio")
     ? 1
     : location.pathname.startsWith("/contracs")
       ? 0
       : false;
   const { notifications, remove } = useNotifications();
+
+  useEffect(() => {
+    const handler = () =>
+      setIsAuthed(Boolean(localStorage.getItem("auth_token")));
+    window.addEventListener("auth-change", handler);
+    window.addEventListener("storage", handler);
+    return () => {
+      window.removeEventListener("auth-change", handler);
+      window.removeEventListener("storage", handler);
+    };
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem("auth_token");
+    window.dispatchEvent(new Event("auth-change"));
+    if (location.pathname.startsWith("/portfolio")) {
+      navigate("/");
+    }
+  };
 
   return (
     <Box
@@ -86,10 +111,24 @@ export default function App() {
               <Tab label="Contracts" sx={{ minHeight: 36 }} />
               <Tab label="Portfolio" sx={{ minHeight: 36 }} />
             </Tabs>
+            {isAuthed ? (
+              <Button size="small" variant="outlined" onClick={handleLogout}>
+                Log out
+              </Button>
+            ) : (
+              <Button
+                size="small"
+                variant="contained"
+                onClick={() => navigate("/login")}
+              >
+                Log in
+              </Button>
+            )}
           </Toolbar>
         </AppBar>
         <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route path="/login" element={<LoginPage />} />
           <Route
             path="/contracs"
             element={<ContractsPage title="Available Contracts" />}
