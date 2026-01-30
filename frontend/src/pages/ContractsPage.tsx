@@ -13,6 +13,10 @@ import {
   Checkbox,
   Chip,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Divider,
   FormControl,
   Grid,
@@ -24,16 +28,23 @@ import {
   Select,
   Slider,
   Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
   TextField,
   Tooltip,
   Typography,
 } from "@mui/material";
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
+import AttachMoneyRoundedIcon from "@mui/icons-material/AttachMoneyRounded";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import {
   fetchContractLocations,
   fetchContractPriceBounds,
   fetchContracts,
+  markContractSold,
   type ContractFilters,
 } from "../api/contracts";
 import { addToPortfolio } from "../api/portfolio";
@@ -113,6 +124,8 @@ export default function ContractsPage({
   const [sortDir, setSortDir] = useState(
     () => initialParams.get("sort_dir") ?? "desc",
   );
+  const [compareOpen, setCompareOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [page, setPage] = useState(() => {
     const value = toPositiveIntOrUndefined(initialParams.get("page") ?? "");
     return value ?? 1;
@@ -251,14 +264,17 @@ export default function ContractsPage({
 
   const resultsCount = data?.total ?? 0;
   const bounds = priceBounds;
+  const selectedContracts = useMemo(
+    () => data?.items.filter((c) => selectedIds.includes(c.id)) ?? [],
+    [data?.items, selectedIds],
+  );
 
   const filterSignature = useMemo(
     () =>
       JSON.stringify({
         energyTypes,
         locations,
-        priceRange:
-          hasInitialPriceParams || priceTouched ? priceRange : "auto",
+        priceRange: hasInitialPriceParams || priceTouched ? priceRange : "auto",
         priceTouched,
         qtyMin,
         qtyMax,
@@ -302,6 +318,12 @@ export default function ContractsPage({
       window.removeEventListener("storage", handler);
     };
   }, []);
+
+  useEffect(() => {
+    if (!data?.items) return;
+    const ids = new Set(data.items.map((c) => c.id));
+    setSelectedIds((prev) => prev.filter((id) => ids.has(id)));
+  }, [data?.items]);
 
   useEffect(() => {
     const [min, max] = priceBounds;
@@ -414,7 +436,17 @@ export default function ContractsPage({
             Matches: {resultsCount}
           </Typography>
         </div>
-        <Chip label="Live market" color="success" variant="outlined" />
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Chip label="Live market" color="success" variant="outlined" />
+          <Button
+            variant="outlined"
+            size="small"
+            disabled={selectedIds.length < 2 || selectedIds.length > 3}
+            onClick={() => setCompareOpen(true)}
+          >
+            Compare ({selectedIds.length})
+          </Button>
+        </Stack>
       </Stack>
 
       <Paper variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
@@ -603,101 +635,168 @@ export default function ContractsPage({
       ) : error ? (
         <Alert severity="error">Unable to load contracts. Try again.</Alert>
       ) : (
-        <Grid container spacing={2}>
-          {data?.items.map((c) => (
-            <Grid key={c.id} size={{ xs: 12 }}>
-              <Card variant="outlined" sx={{ borderRadius: 3, height: "100%" }}>
-                <CardContent>
-                  <Stack
-                    direction="row"
-                    justifyContent="space-between"
-                    alignItems="center"
-                    spacing={2}
-                  >
-                    <Stack direction="row" spacing={1} alignItems="center">
-                      <Tooltip title="View details" arrow>
-                        <Button
-                          size="small"
-                          component={Link}
-                          to={`/contracs/${c.id}`}
-                          state={{
-                            from: `${location.pathname}${location.search}`,
-                          }}
-                          sx={{ minWidth: 0, paddingX: 1 }}
-                        >
-                          #{c.id}
-                        </Button>
-                      </Tooltip>
-                      <Typography variant="subtitle1" fontWeight={700}>
-                        • {c.energy_type}
-                      </Typography>
-                    </Stack>
-                    <Typography variant="body2" color="text.secondary">
-                      {c.location}
-                    </Typography>
-                  </Stack>
-                  <Divider sx={{ my: 1.5 }} />
-                  <Stack spacing={0.75}>
-                    <Typography variant="body1">
-                      {c.quantity_mwh} MWh{" "}
-                      <Typography
-                        component="span"
-                        variant="body2"
-                        color="text.secondary"
-                      >
-                        @ ${c.price_per_mwh}/MWh
-                      </Typography>
-                    </Typography>
+        <Stack spacing={1}>
+          <Box sx={{ display: "flex", justifyContent: "flex-start" }}>
+            <Button
+              variant="text"
+              size="small"
+              disabled={selectedIds.length === 0}
+              onClick={() => setSelectedIds([])}
+            >
+              Clear selection
+            </Button>
+          </Box>
+          <Grid container spacing={2}>
+            {data?.items.map((c) => (
+              <Grid key={c.id} size={{ xs: 12 }}>
+                <Card
+                  variant="outlined"
+                  sx={{ borderRadius: 3, height: "100%" }}
+                >
+                  <CardContent>
                     <Stack
                       direction="row"
-                      alignItems="center"
                       justifyContent="space-between"
+                      alignItems="center"
                       spacing={2}
                     >
-                      <Typography variant="body2" color="text.secondary">
-                        Delivery {c.delivery_start} → {c.delivery_end}
-                      </Typography>
-                      <Tooltip title="Add to portfolio" arrow>
-                        <Button
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Checkbox
                           size="small"
-                          variant="contained"
-                          color="primary"
-                          aria-label="Add to portfolio"
-                          onClick={async () => {
-                            try {
-                              await addToPortfolio(c.id);
-                              qc.invalidateQueries({
-                                queryKey: ["portfolio-items"],
-                              });
-                              qc.invalidateQueries({
-                                queryKey: ["portfolio-metrics"],
-                              });
+                          checked={selectedIds.includes(c.id)}
+                          onChange={(_, checked) => {
+                            if (checked && selectedIds.length >= 3) {
                               notify({
-                                message: `Added contract #${c.id} to portfolio`,
-                                severity: "success",
+                                message: "You can compare up to 3 contracts.",
+                                severity: "warning",
                               });
-                            } catch {
-                              notify({
-                                message: "Failed to add contract to portfolio",
-                                severity: "error",
-                              });
+                              return;
                             }
+                            setSelectedIds((prev) =>
+                              checked
+                                ? [...prev, c.id]
+                                : prev.filter((id) => id !== c.id),
+                            );
                           }}
-                          sx={{
-                            minWidth: 0,
-                            paddingX: 1,
-                          }}
-                        >
-                          <AddRoundedIcon fontSize="small" />
-                        </Button>
-                      </Tooltip>
+                          inputProps={{ "aria-label": "Select for comparison" }}
+                        />
+                        <Tooltip title="View details" arrow>
+                          <Button
+                            size="small"
+                            component={Link}
+                            to={`/contracs/${c.id}`}
+                            state={{
+                              from: `${location.pathname}${location.search}`,
+                            }}
+                            sx={{ minWidth: 0, paddingX: 1 }}
+                          >
+                            #{c.id}
+                          </Button>
+                        </Tooltip>
+                        <Typography variant="subtitle1" fontWeight={700}>
+                          • {c.energy_type}
+                        </Typography>
+                      </Stack>
+                      <Typography variant="body2" color="text.secondary">
+                        {c.location}
+                      </Typography>
                     </Stack>
-                  </Stack>
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
+                    <Divider sx={{ my: 1.5 }} />
+                    <Stack spacing={0.75}>
+                      <Typography variant="body1">
+                        {c.quantity_mwh} MWh{" "}
+                        <Typography
+                          component="span"
+                          variant="body2"
+                          color="text.secondary"
+                        >
+                          @ ${c.price_per_mwh}/MWh
+                        </Typography>
+                      </Typography>
+                      <Stack
+                        direction="row"
+                        alignItems="center"
+                        justifyContent="space-between"
+                        spacing={2}
+                      >
+                        <Typography variant="body2" color="text.secondary">
+                          Delivery {c.delivery_start} → {c.delivery_end}
+                        </Typography>
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <Tooltip title="Mark as sold" arrow>
+                            <Button
+                              size="small"
+                              variant="text"
+                              aria-label="Mark as sold"
+                              onClick={async () => {
+                                try {
+                                  await markContractSold(c.id);
+                                  qc.invalidateQueries({
+                                    queryKey: ["contracts"],
+                                  });
+                                  qc.invalidateQueries({
+                                    queryKey: ["contracts-price-bounds"],
+                                  });
+                                  notify({
+                                    message: `Marked contract #${c.id} as sold`,
+                                    severity: "success",
+                                  });
+                                } catch {
+                                  notify({
+                                    message: "Failed to mark contract as sold",
+                                    severity: "error",
+                                  });
+                                }
+                              }}
+                              sx={{ minWidth: 0, paddingX: 1 }}
+                            >
+                              <AttachMoneyRoundedIcon fontSize="small" />
+                            </Button>
+                          </Tooltip>
+                          <Tooltip title="Add to portfolio" arrow>
+                            <Button
+                              size="small"
+                              variant="contained"
+                              color="primary"
+                              aria-label="Add to portfolio"
+                              onClick={async () => {
+                                try {
+                                  await addToPortfolio(c.id);
+                                  qc.invalidateQueries({
+                                    queryKey: ["portfolio-items"],
+                                  });
+                                  qc.invalidateQueries({
+                                    queryKey: ["portfolio-metrics"],
+                                  });
+                                  notify({
+                                    message: `Added contract #${c.id} to portfolio`,
+                                    severity: "success",
+                                  });
+                                } catch {
+                                  notify({
+                                    message:
+                                      "Failed to add contract to portfolio",
+                                    severity: "error",
+                                  });
+                                }
+                              }}
+                              sx={{
+                                minWidth: 0,
+                                paddingX: 1,
+                              }}
+                            >
+                              <AddRoundedIcon fontSize="small" />
+                            </Button>
+                          </Tooltip>
+                        </Stack>
+                      </Stack>
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        </Stack>
       )}
       {data && data.total > data.page_size ? (
         <Stack alignItems="center" sx={{ pt: 1 }}>
@@ -709,6 +808,60 @@ export default function ContractsPage({
           />
         </Stack>
       ) : null}
+
+      <Dialog
+        open={compareOpen}
+        onClose={() => setCompareOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Compare contracts</DialogTitle>
+        <DialogContent>
+          {selectedContracts.length < 2 ? (
+            <Typography variant="body2" color="text.secondary">
+              Select 2–3 contracts to compare.
+            </Typography>
+          ) : (
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Field</TableCell>
+                  {selectedContracts.map((c) => (
+                    <TableCell key={c.id} align="left">
+                      #{c.id}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {[
+                  ["Energy type", (c: any) => c.energy_type],
+                  ["Quantity (MWh)", (c: any) => c.quantity_mwh],
+                  ["Price ($/MWh)", (c: any) => c.price_per_mwh],
+                  ["Delivery start", (c: any) => c.delivery_start],
+                  ["Delivery end", (c: any) => c.delivery_end],
+                  ["Location", (c: any) => c.location],
+                  ["Status", (c: any) => c.status],
+                ].map(([label, getter]) => (
+                  <TableRow key={String(label)}>
+                    <TableCell sx={{ whiteSpace: "nowrap" }}>
+                      {label as string}
+                    </TableCell>
+                    {selectedContracts.map((c) => (
+                      <TableCell key={`${label}-${c.id}`}>
+                        {(getter as (x: any) => any)(c)}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCompareOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
     </Stack>
   );
 }

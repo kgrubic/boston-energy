@@ -73,3 +73,10 @@ export async function fetchContractById(contractId: number) {
   const { data } = await api.get<Contract>(`/contracts/${contractId}`);
   return data;
 }
+
+export async function markContractSold(contractId: number) {
+  const { data } = await api.patch<Contract>(`/contracts/${contractId}`, {
+    status: "Sold",
+  });
+  return data;
+}
