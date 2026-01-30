@@ -68,7 +68,9 @@ export default function App() {
       sx={{
         minHeight: "100vh",
         background:
-          "radial-gradient(circle at top, rgba(15, 118, 110, 0.12), transparent 45%), linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%)",
+          mode === "dark"
+            ? "linear-gradient(180deg, #0b0f13 0%, #0f172a 100%)"
+            : "radial-gradient(circle at top, rgba(15, 118, 110, 0.12), transparent 45%), linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%)",
         py: { xs: 2, md: 4 },
       }}
     >

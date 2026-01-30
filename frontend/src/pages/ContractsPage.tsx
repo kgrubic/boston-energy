@@ -126,7 +126,7 @@ export default function ContractsPage({
     () => initialParams.get("sort_dir") ?? "desc",
   );
   const [compareOpen, setCompareOpen] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [selectedContracts, setSelectedContracts] = useState<Contract[]>([]);
   const priceDebounceRef = useRef<number | null>(null);
   const [page, setPage] = useState(() => {
     const value = toPositiveIntOrUndefined(initialParams.get("page") ?? "");
@@ -269,9 +269,9 @@ export default function ContractsPage({
 
   const resultsCount = data?.total ?? 0;
   const bounds = priceBounds;
-  const selectedContracts = useMemo(
-    () => data?.items.filter((c) => selectedIds.includes(c.id)) ?? [],
-    [data?.items, selectedIds],
+  const selectedIds = useMemo(
+    () => selectedContracts.map((c) => c.id),
+    [selectedContracts],
   );
 
   const filterSignature = useMemo(
@@ -324,13 +324,6 @@ export default function ContractsPage({
       window.removeEventListener("storage", handler);
     };
   }, []);
-
-  useEffect(() => {
-    if (!data?.items) return;
-    const ids = new Set(data.items.map((c) => c.id));
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSelectedIds((prev) => prev.filter((id) => ids.has(id)));
-  }, [data?.items]);
 
   useEffect(() => {
     return () => {
@@ -441,10 +434,12 @@ export default function ContractsPage({
           <Button
             variant="outlined"
             size="small"
-            disabled={selectedIds.length < 2 || selectedIds.length > 3}
+            disabled={
+              selectedContracts.length < 2 || selectedContracts.length > 3
+            }
             onClick={() => setCompareOpen(true)}
           >
-            Compare ({selectedIds.length})
+            Compare ({selectedContracts.length})
           </Button>
         </Stack>
       </Stack>
@@ -647,8 +642,8 @@ export default function ContractsPage({
             <Button
               variant="text"
               size="small"
-              disabled={selectedIds.length === 0}
-              onClick={() => setSelectedIds([])}
+              disabled={selectedContracts.length === 0}
+              onClick={() => setSelectedContracts([])}
             >
               Clear selection
             </Button>
@@ -672,31 +667,31 @@ export default function ContractsPage({
                           size="small"
                           checked={selectedIds.includes(c.id)}
                           onChange={(_, checked) => {
-                            if (checked && selectedIds.length >= 3) {
+                            if (checked && selectedContracts.length >= 3) {
                               notify({
                                 message: "You can compare up to 3 contracts.",
                                 severity: "error",
                               });
                               return;
                             }
-                            setSelectedIds((prev) =>
+                            setSelectedContracts((prev) =>
                               checked
-                                ? [...prev, c.id]
-                                : prev.filter((id) => id !== c.id),
+                                ? [...prev, c]
+                                : prev.filter((item) => item.id !== c.id),
                             );
                           }}
                           inputProps={{ "aria-label": "Select for comparison" }}
                         />
                         <Tooltip title="View details" arrow>
-                        <Button
-                          size="small"
-                          component={Link}
-                          to={`/contracts/${c.id}`}
-                          state={{
-                            from: `${location.pathname}${location.search}`,
-                          }}
-                          sx={{ minWidth: 0, paddingX: 1 }}
-                        >
+                          <Button
+                            size="small"
+                            component={Link}
+                            to={`/contracts/${c.id}`}
+                            state={{
+                              from: `${location.pathname}${location.search}`,
+                            }}
+                            sx={{ minWidth: 0, paddingX: 1 }}
+                          >
                             #{c.id}
                           </Button>
                         </Tooltip>
