@@ -12,12 +12,10 @@ import {
   Box,
   Button,
   Container,
-  IconButton,
   Snackbar,
   Tab,
   Tabs,
   Toolbar,
-  Tooltip,
   Typography,
 } from "@mui/material";
 import { Link as RouterLink } from "react-router-dom";
@@ -117,15 +115,20 @@ export default function App() {
               <Tab label="Contracts" sx={{ minHeight: 36 }} />
               <Tab label="Portfolio" sx={{ minHeight: 36 }} />
             </Tabs>
-            <Tooltip title="Toggle theme" arrow>
-              <IconButton onClick={toggle} size="small">
-                {mode === "dark" ? (
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={toggle}
+              startIcon={
+                mode === "dark" ? (
                   <Brightness7RoundedIcon fontSize="small" />
                 ) : (
                   <Brightness4RoundedIcon fontSize="small" />
-                )}
-              </IconButton>
-            </Tooltip>
+                )
+              }
+            >
+              {mode === "dark" ? "Light mode" : "Dark mode"}
+            </Button>
             {isAuthed ? (
               <Button size="small" variant="outlined" onClick={handleLogout}>
                 Log out
