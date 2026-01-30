@@ -29,7 +29,7 @@ export default function LoginPage() {
       const res = await login(username, password);
       localStorage.setItem("auth_token", res.access_token);
       notifyAuthChange();
-      navigate("/contracs");
+      navigate("/contracts");
     } catch {
       setError("Invalid username or password.");
     } finally {

@@ -45,6 +45,7 @@ import {
   fetchContractPriceBounds,
   fetchContracts,
   markContractSold,
+  type Contract,
   type ContractFilters,
 } from "../api/contracts";
 import { addToPortfolio } from "../api/portfolio";
@@ -126,6 +127,7 @@ export default function ContractsPage({
   );
   const [compareOpen, setCompareOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const priceDebounceRef = useRef<number | null>(null);
   const [page, setPage] = useState(() => {
     const value = toPositiveIntOrUndefined(initialParams.get("page") ?? "");
     return value ?? 1;
@@ -183,6 +185,7 @@ export default function ContractsPage({
   }, [
     endDate,
     energyTypes,
+    hasInitialPriceParams,
     locations,
     page,
     priceRange,
@@ -261,6 +264,8 @@ export default function ContractsPage({
     Math.max(priceBounds[0], priceRangeInput[0]),
     Math.min(priceBounds[1], priceRangeInput[1]),
   ];
+  const displayPriceRange: [number, number] =
+    !hasInitialPriceParams && !priceTouched ? priceBounds : clampedPriceRange;
 
   const resultsCount = data?.total ?? 0;
   const bounds = priceBounds;
@@ -304,6 +309,7 @@ export default function ContractsPage({
   useEffect(() => {
     if (prevFilterSignature.current !== filterSignature) {
       prevFilterSignature.current = filterSignature;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPage(1);
     }
   }, [filterSignature]);
@@ -322,29 +328,17 @@ export default function ContractsPage({
   useEffect(() => {
     if (!data?.items) return;
     const ids = new Set(data.items.map((c) => c.id));
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedIds((prev) => prev.filter((id) => ids.has(id)));
   }, [data?.items]);
 
   useEffect(() => {
-    const [min, max] = priceBounds;
-    if (!hasInitialPriceParams && !priceTouched) {
-      setPriceRangeInput([min, max]);
-      setPriceRange([min, max]);
-      return;
-    }
-    setPriceRangeInput((prev) => [
-      Math.max(min, prev[0]),
-      Math.min(max, prev[1]),
-    ]);
-    setPriceRange((prev) => [Math.max(min, prev[0]), Math.min(max, prev[1])]);
-  }, [hasInitialPriceParams, priceBounds, priceTouched]);
-
-  useEffect(() => {
-    const t = setTimeout(() => {
-      setPriceRange(priceRangeInput);
-    }, 1000);
-    return () => clearTimeout(t);
-  }, [priceRangeInput]);
+    return () => {
+      if (priceDebounceRef.current !== null) {
+        window.clearTimeout(priceDebounceRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const nextParams = new URLSearchParams();
@@ -383,6 +377,7 @@ export default function ContractsPage({
   }, [
     endDate,
     energyTypes,
+    hasInitialPriceParams,
     locations,
     priceRange,
     priceTouched,
@@ -398,6 +393,7 @@ export default function ContractsPage({
 
   useEffect(() => {
     const next = toPositiveIntOrUndefined(searchParams.get("page") ?? "") ?? 1;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPage((prev) => (prev === next ? prev : next));
   }, [searchParams]);
 
@@ -411,6 +407,10 @@ export default function ContractsPage({
     setPriceTouched(false);
     setPriceRangeInput(DEFAULT_PRICE_RANGE);
     setPriceRange(DEFAULT_PRICE_RANGE);
+    if (priceDebounceRef.current !== null) {
+      window.clearTimeout(priceDebounceRef.current);
+      priceDebounceRef.current = null;
+    }
     setSortBy("");
     setSortDir("desc");
     setPage(1);
@@ -524,12 +524,19 @@ export default function ContractsPage({
               Price range ($/MWh)
             </Typography>
             <Slider
-              value={clampedPriceRange}
+              value={displayPriceRange}
               min={bounds[0]}
               max={bounds[1]}
               onChange={(_, value) => {
                 setPriceTouched(true);
-                setPriceRangeInput(value as [number, number]);
+                const next = value as [number, number];
+                setPriceRangeInput(next);
+                if (priceDebounceRef.current !== null) {
+                  window.clearTimeout(priceDebounceRef.current);
+                }
+                priceDebounceRef.current = window.setTimeout(() => {
+                  setPriceRange(next);
+                }, 1000);
               }}
               valueLabelDisplay="auto"
               valueLabelFormat={(value) => `$${value}`}
@@ -537,10 +544,10 @@ export default function ContractsPage({
             />
             <Stack direction="row" justifyContent="space-between">
               <Typography variant="caption" color="text.secondary">
-                ${clampedPriceRange[0]}
+                ${displayPriceRange[0]}
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                ${clampedPriceRange[1]}
+                ${displayPriceRange[1]}
               </Typography>
             </Stack>
           </Grid>
@@ -668,7 +675,7 @@ export default function ContractsPage({
                             if (checked && selectedIds.length >= 3) {
                               notify({
                                 message: "You can compare up to 3 contracts.",
-                                severity: "warning",
+                                severity: "error",
                               });
                               return;
                             }
@@ -681,15 +688,15 @@ export default function ContractsPage({
                           inputProps={{ "aria-label": "Select for comparison" }}
                         />
                         <Tooltip title="View details" arrow>
-                          <Button
-                            size="small"
-                            component={Link}
-                            to={`/contracs/${c.id}`}
-                            state={{
-                              from: `${location.pathname}${location.search}`,
-                            }}
-                            sx={{ minWidth: 0, paddingX: 1 }}
-                          >
+                        <Button
+                          size="small"
+                          component={Link}
+                          to={`/contracts/${c.id}`}
+                          state={{
+                            from: `${location.pathname}${location.search}`,
+                          }}
+                          sx={{ minWidth: 0, paddingX: 1 }}
+                        >
                             #{c.id}
                           </Button>
                         </Tooltip>
@@ -834,22 +841,40 @@ export default function ContractsPage({
                 </TableRow>
               </TableHead>
               <TableBody>
-                {[
-                  ["Energy type", (c: any) => c.energy_type],
-                  ["Quantity (MWh)", (c: any) => c.quantity_mwh],
-                  ["Price ($/MWh)", (c: any) => c.price_per_mwh],
-                  ["Delivery start", (c: any) => c.delivery_start],
-                  ["Delivery end", (c: any) => c.delivery_end],
-                  ["Location", (c: any) => c.location],
-                  ["Status", (c: any) => c.status],
-                ].map(([label, getter]) => (
+                {(
+                  [
+                    {
+                      label: "Energy type",
+                      getValue: (c: Contract) => c.energy_type,
+                    },
+                    {
+                      label: "Quantity (MWh)",
+                      getValue: (c: Contract) => c.quantity_mwh,
+                    },
+                    {
+                      label: "Price ($/MWh)",
+                      getValue: (c: Contract) => c.price_per_mwh,
+                    },
+                    {
+                      label: "Delivery start",
+                      getValue: (c: Contract) => c.delivery_start,
+                    },
+                    {
+                      label: "Delivery end",
+                      getValue: (c: Contract) => c.delivery_end,
+                    },
+                    {
+                      label: "Location",
+                      getValue: (c: Contract) => c.location,
+                    },
+                    { label: "Status", getValue: (c: Contract) => c.status },
+                  ] as const
+                ).map(({ label, getValue }) => (
                   <TableRow key={String(label)}>
-                    <TableCell sx={{ whiteSpace: "nowrap" }}>
-                      {label as string}
-                    </TableCell>
+                    <TableCell sx={{ whiteSpace: "nowrap" }}>{label}</TableCell>
                     {selectedContracts.map((c) => (
                       <TableCell key={`${label}-${c.id}`}>
-                        {(getter as (x: any) => any)(c)}
+                        {getValue(c)}
                       </TableCell>
                     ))}
                   </TableRow>

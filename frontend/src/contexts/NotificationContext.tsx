@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import {
   createContext,
   useCallback,
@@ -31,14 +32,13 @@ const NotificationContext = createContext<NotificationContextValue | undefined>(
   undefined,
 );
 
-const generateId = () =>
-  typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const timeoutsRef = useRef<Map<string, number>>(new Map());
+  const generateId = () =>
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
   const remove = useCallback((id: string) => {
     setNotifications((prev) => prev.filter((item) => item.id !== id));
@@ -60,9 +60,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
+    const timeouts = timeoutsRef.current;
     return () => {
-      timeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
-      timeoutsRef.current.clear();
+      timeouts.forEach((timeoutId) => window.clearTimeout(timeoutId));
+      timeouts.clear();
     };
   }, []);
 

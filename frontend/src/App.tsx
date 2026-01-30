@@ -35,7 +35,7 @@ export default function App() {
   );
   const tabIndex = location.pathname.startsWith("/portfolio")
     ? 1
-    : location.pathname.startsWith("/contracs")
+    : location.pathname.startsWith("/contracts")
       ? 0
       : false;
   const { notifications, remove } = useNotifications();
@@ -100,7 +100,7 @@ export default function App() {
             <Tabs
               value={tabIndex}
               onChange={(_, value) =>
-                navigate(value === 0 ? "/contracs" : "/portfolio")
+                navigate(value === 0 ? "/contracts" : "/portfolio")
               }
               textColor="primary"
               indicatorColor="primary"
@@ -130,20 +130,24 @@ export default function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route
-            path="/contracs"
+            path="/contracts"
             element={<ContractsPage title="Available Contracts" />}
           />
           <Route
-            path="/contracs/:contractId"
+            path="/contracts/:contractId"
             element={<ContractDetailsPage />}
           />
           <Route
-            path="/contracts"
-            element={<Navigate to="/contracs" replace />}
+            path="/contracs"
+            element={<Navigate to="/contracts" replace />}
           />
           <Route
             path="/contract/:contractId"
-            element={<Navigate to="/contracs/:contractId" replace />}
+            element={<Navigate to="/contracts/:contractId" replace />}
+          />
+          <Route
+            path="/contracs/:contractId"
+            element={<Navigate to="/contracts/:contractId" replace />}
           />
           <Route path="/portfolio" element={<PortfolioPage />} />
         </Routes>

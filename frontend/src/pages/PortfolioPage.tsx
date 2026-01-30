@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import axios from "axios";
 import {
   Alert,
   Card,
@@ -38,8 +39,10 @@ export default function PortfolioPage() {
   });
 
   const isUnauthorized =
-    (itemsQ.error as any)?.response?.status === 401 ||
-    (metricsQ.error as any)?.response?.status === 401;
+    (axios.isAxiosError(itemsQ.error) &&
+      itemsQ.error.response?.status === 401) ||
+    (axios.isAxiosError(metricsQ.error) &&
+      metricsQ.error.response?.status === 401);
 
   if (itemsQ.isLoading || metricsQ.isLoading)
     return (
