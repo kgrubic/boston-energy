@@ -65,10 +65,6 @@ cp frontend/.env.example frontend/.env
 docker compose up --build -d
 ```
 
-Hot reload (Docker):
-- Frontend is volume-mounted and uses Vite dev server
-- Backend runs `uvicorn --reload`
-
 4. Wait for Postgres to be ready (run until it says "accepting connections")
 
 ```bash
@@ -94,6 +90,11 @@ Backend (local):
 http://localhost:8000
 http://localhost:8000/docs
 ```
+
+Hot reload (Docker):
+
+- Frontend is volume-mounted and uses Vite dev server
+- Backend runs `uvicorn --reload`
 
 ## Environment Variables
 
@@ -121,3 +122,13 @@ Key endpoints:
 ## Seed Data
 
 Seed script: `backend/seed.py` (includes 10+ sample contracts).
+
+## Tests (Backend)
+
+```bash
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ".[dev]"
+pytest
+```

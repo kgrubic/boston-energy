@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
@@ -29,6 +29,9 @@ export default function ContractDetailsPage() {
   const { notify } = useNotifications();
   const location = useLocation();
   const backTo = (location.state as LocationState | null)?.from ?? "/contracts";
+  const [isAuthed, setIsAuthed] = useState(
+    Boolean(localStorage.getItem("auth_token")),
+  );
 
   const id = useMemo(() => Number(contractId), [contractId]);
   const {
@@ -40,6 +43,21 @@ export default function ContractDetailsPage() {
     queryFn: () => fetchContractById(id),
     enabled: Number.isFinite(id),
   });
+
+  useEffect(() => {
+    const handler = () =>
+      setIsAuthed(Boolean(localStorage.getItem("auth_token")));
+    window.addEventListener("auth-change", handler);
+    window.addEventListener("storage", handler);
+    return () => {
+      window.removeEventListener("auth-change", handler);
+      window.removeEventListener("storage", handler);
+    };
+  }, []);
+
+  if (!isAuthed) {
+    return <Alert severity="warning">Not authorized.</Alert>;
+  }
 
   if (isLoading) {
     return (
