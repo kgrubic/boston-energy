@@ -5,16 +5,19 @@ import ContractDetailsPage from "./pages/ContractDetailsPage";
 import HomePage from "./pages/HomePage";
 import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
 import LoginPage from "./pages/LoginPage";
+import { useColorMode } from "./contexts/ColorModeContext";
 import {
   Alert,
   AppBar,
   Box,
   Button,
   Container,
+  IconButton,
   Snackbar,
   Tab,
   Tabs,
   Toolbar,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import { Link as RouterLink } from "react-router-dom";
@@ -26,6 +29,8 @@ import {
   useNavigate,
 } from "react-router-dom";
 import { useNotifications } from "./contexts/NotificationContext";
+import Brightness4RoundedIcon from "@mui/icons-material/Brightness4Rounded";
+import Brightness7RoundedIcon from "@mui/icons-material/Brightness7Rounded";
 
 export default function App() {
   const location = useLocation();
@@ -33,6 +38,7 @@ export default function App() {
   const [isAuthed, setIsAuthed] = useState(
     Boolean(localStorage.getItem("auth_token")),
   );
+  const { mode, toggle } = useColorMode();
   const tabIndex = location.pathname.startsWith("/portfolio")
     ? 1
     : location.pathname.startsWith("/contracts")
@@ -111,6 +117,15 @@ export default function App() {
               <Tab label="Contracts" sx={{ minHeight: 36 }} />
               <Tab label="Portfolio" sx={{ minHeight: 36 }} />
             </Tabs>
+            <Tooltip title="Toggle theme" arrow>
+              <IconButton onClick={toggle} size="small">
+                {mode === "dark" ? (
+                  <Brightness7RoundedIcon fontSize="small" />
+                ) : (
+                  <Brightness4RoundedIcon fontSize="small" />
+                )}
+              </IconButton>
+            </Tooltip>
             {isAuthed ? (
               <Button size="small" variant="outlined" onClick={handleLogout}>
                 Log out
