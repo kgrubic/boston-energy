@@ -1,6 +1,7 @@
 import ContractsPage from "./pages/ContractsPage";
 import PortfolioPage from "./pages/PortfolioPage";
 import ContractDetailsPage from "./pages/ContractDetailsPage";
+import HomePage from "./pages/HomePage";
 import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
 import {
   Alert,
@@ -13,13 +14,24 @@ import {
   Toolbar,
   Typography,
 } from "@mui/material";
-import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { Link as RouterLink } from "react-router-dom";
+import {
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 import { useNotifications } from "./contexts/NotificationContext";
 
 export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
-  const tabIndex = location.pathname.startsWith("/portfolio") ? 1 : 0;
+  const tabIndex = location.pathname.startsWith("/portfolio")
+    ? 1
+    : location.pathname.startsWith("/contracs")
+      ? 0
+      : false;
   const { notifications, remove } = useNotifications();
 
   return (
@@ -47,13 +59,23 @@ export default function App() {
         >
           <Toolbar sx={{ gap: 2, flexWrap: "wrap" }}>
             <BoltRoundedIcon color="primary" />
-            <Typography variant="h6" sx={{ fontWeight: 700, flexGrow: 1 }}>
+            <Typography
+              component={RouterLink}
+              to="/"
+              variant="h6"
+              sx={{
+                fontWeight: 700,
+                flexGrow: 1,
+                color: "inherit",
+                textDecoration: "none",
+              }}
+            >
               Boston Energy
             </Typography>
             <Tabs
               value={tabIndex}
               onChange={(_, value) =>
-                navigate(value === 0 ? "/" : "/portfolio")
+                navigate(value === 0 ? "/contracs" : "/portfolio")
               }
               textColor="primary"
               indicatorColor="primary"
@@ -67,8 +89,23 @@ export default function App() {
           </Toolbar>
         </AppBar>
         <Routes>
-          <Route path="/" element={<ContractsPage title="Available Contracts" />} />
-          <Route path="/contract/:contractId" element={<ContractDetailsPage />} />
+          <Route path="/" element={<HomePage />} />
+          <Route
+            path="/contracs"
+            element={<ContractsPage title="Available Contracts" />}
+          />
+          <Route
+            path="/contracs/:contractId"
+            element={<ContractDetailsPage />}
+          />
+          <Route
+            path="/contracts"
+            element={<Navigate to="/contracs" replace />}
+          />
+          <Route
+            path="/contract/:contractId"
+            element={<Navigate to="/contracs/:contractId" replace />}
+          />
           <Route path="/portfolio" element={<PortfolioPage />} />
         </Routes>
       </Container>

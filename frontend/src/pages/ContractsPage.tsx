@@ -32,6 +32,7 @@ import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import {
   fetchContractLocations,
+  fetchContractPriceBounds,
   fetchContracts,
   type ContractFilters,
 } from "../api/contracts";
@@ -49,7 +50,6 @@ const ENERGY_OPTIONS = [
 
 const DEFAULT_PRICE_RANGE: [number, number] = [0, 100];
 const PAGE_SIZE = 8;
-const BOUNDS_PAGE_SIZE = 100;
 
 const toNumberOrUndefined = (value: string) => {
   if (!value.trim()) return undefined;
@@ -95,11 +95,21 @@ export default function ContractsPage({
   const initialPriceMax = toNumberOrUndefined(
     initialParams.get("price_max") ?? "",
   );
+  const [priceRangeInput, setPriceRangeInput] = useState<[number, number]>([
+    initialPriceMin ?? DEFAULT_PRICE_RANGE[0],
+    initialPriceMax ?? DEFAULT_PRICE_RANGE[1],
+  ]);
   const [priceRange, setPriceRange] = useState<[number, number]>([
     initialPriceMin ?? DEFAULT_PRICE_RANGE[0],
     initialPriceMax ?? DEFAULT_PRICE_RANGE[1],
   ]);
   const [priceTouched, setPriceTouched] = useState(false);
+  const [sortBy, setSortBy] = useState(
+    () => initialParams.get("sort_by") ?? "",
+  );
+  const [sortDir, setSortDir] = useState(
+    () => initialParams.get("sort_dir") ?? "desc",
+  );
   const [page, setPage] = useState(() => {
     const value = toPositiveIntOrUndefined(initialParams.get("page") ?? "");
     return value ?? 1;
@@ -133,6 +143,11 @@ export default function ContractsPage({
 
     if (locations.length > 0) next.location = locations;
 
+    if (sortBy) {
+      next.sort_by = sortBy;
+      next.sort_dir = sortDir;
+    }
+
     const shouldUsePriceFilter = hasInitialPriceParams || priceTouched;
     if (shouldUsePriceFilter) {
       const [minPrice, maxPrice] = priceRange;
@@ -158,6 +173,8 @@ export default function ContractsPage({
     priceTouched,
     qtyMaxValue,
     qtyMinValue,
+    sortBy,
+    sortDir,
     startDate,
     statusFilter,
   ]);
@@ -169,13 +186,16 @@ export default function ContractsPage({
 
     if (locations.length > 0) next.location = locations;
 
+    if (sortBy) {
+      next.sort_by = sortBy;
+      next.sort_dir = sortDir;
+    }
+
     if (qtyMinValue !== undefined) next.qty_min = qtyMinValue;
     if (qtyMaxValue !== undefined) next.qty_max = qtyMaxValue;
 
     if (startDate) next.start_from = startDate.format("YYYY-MM-DD");
     if (endDate) next.end_to = endDate.format("YYYY-MM-DD");
-    next.page = 1;
-    next.page_size = BOUNDS_PAGE_SIZE;
 
     return next;
   }, [
@@ -184,6 +204,8 @@ export default function ContractsPage({
     locations,
     qtyMaxValue,
     qtyMinValue,
+    sortBy,
+    sortDir,
     startDate,
     statusFilter,
   ]);
@@ -196,7 +218,7 @@ export default function ContractsPage({
 
   const boundsQ = useQuery({
     queryKey: ["contracts-price-bounds", filtersWithoutPrice],
-    queryFn: () => fetchContracts(filtersWithoutPrice),
+    queryFn: () => fetchContractPriceBounds(filtersWithoutPrice),
     enabled: !qtyRangeInvalid,
   });
 
@@ -206,15 +228,21 @@ export default function ContractsPage({
   });
 
   const priceBounds = useMemo<[number, number]>(() => {
-    if (!boundsQ.data || boundsQ.data.items.length === 0)
+    if (
+      !boundsQ.data ||
+      boundsQ.data.min_price === null ||
+      boundsQ.data.max_price === null
+    )
       return DEFAULT_PRICE_RANGE;
-    const prices = boundsQ.data.items.map((c) => Number(c.price_per_mwh));
-    return [Math.floor(Math.min(...prices)), Math.ceil(Math.max(...prices))];
+    return [
+      Math.floor(Number(boundsQ.data.min_price)),
+      Math.ceil(Number(boundsQ.data.max_price)),
+    ];
   }, [boundsQ.data]);
 
   const clampedPriceRange: [number, number] = [
-    Math.max(priceBounds[0], priceRange[0]),
-    Math.min(priceBounds[1], priceRange[1]),
+    Math.max(priceBounds[0], priceRangeInput[0]),
+    Math.min(priceBounds[1], priceRangeInput[1]),
   ];
 
   const resultsCount = data?.total ?? 0;
@@ -225,22 +253,28 @@ export default function ContractsPage({
       JSON.stringify({
         energyTypes,
         locations,
-        priceRange,
+        priceRange:
+          hasInitialPriceParams || priceTouched ? priceRange : "auto",
         priceTouched,
         qtyMin,
         qtyMax,
         startDate: startDate?.format("YYYY-MM-DD") ?? "",
         endDate: endDate?.format("YYYY-MM-DD") ?? "",
+        sortBy,
+        sortDir,
         statusFilter: statusFilter ?? "",
       }),
     [
       endDate,
       energyTypes,
+      hasInitialPriceParams,
       locations,
       priceRange,
       priceTouched,
       qtyMax,
       qtyMin,
+      sortBy,
+      sortDir,
       startDate,
       statusFilter,
     ],
@@ -257,14 +291,23 @@ export default function ContractsPage({
   useEffect(() => {
     const [min, max] = priceBounds;
     if (!hasInitialPriceParams && !priceTouched) {
+      setPriceRangeInput([min, max]);
       setPriceRange([min, max]);
       return;
     }
-    setPriceRange((prev) => [
+    setPriceRangeInput((prev) => [
       Math.max(min, prev[0]),
       Math.min(max, prev[1]),
     ]);
+    setPriceRange((prev) => [Math.max(min, prev[0]), Math.min(max, prev[1])]);
   }, [hasInitialPriceParams, priceBounds, priceTouched]);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setPriceRange(priceRangeInput);
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [priceRangeInput]);
 
   useEffect(() => {
     const nextParams = new URLSearchParams();
@@ -291,6 +334,10 @@ export default function ContractsPage({
 
     if (startDate) nextParams.set("start_from", startDate.format("YYYY-MM-DD"));
     if (endDate) nextParams.set("end_to", endDate.format("YYYY-MM-DD"));
+    if (sortBy) {
+      nextParams.set("sort_by", sortBy);
+      nextParams.set("sort_dir", sortDir);
+    }
     if (page > 1) nextParams.set("page", String(page));
 
     if (nextParams.toString() !== searchParams.toString()) {
@@ -306,9 +353,16 @@ export default function ContractsPage({
     qtyMin,
     searchParams,
     setSearchParams,
+    sortBy,
+    sortDir,
     startDate,
     page,
   ]);
+
+  useEffect(() => {
+    const next = toPositiveIntOrUndefined(searchParams.get("page") ?? "") ?? 1;
+    setPage((prev) => (prev === next ? prev : next));
+  }, [searchParams]);
 
   const handleClear = () => {
     setEnergyTypes([]);
@@ -318,7 +372,10 @@ export default function ContractsPage({
     setStartDate(null);
     setEndDate(null);
     setPriceTouched(false);
+    setPriceRangeInput(DEFAULT_PRICE_RANGE);
     setPriceRange(DEFAULT_PRICE_RANGE);
+    setSortBy("");
+    setSortDir("desc");
     setPage(1);
   };
 
@@ -421,7 +478,7 @@ export default function ContractsPage({
               max={bounds[1]}
               onChange={(_, value) => {
                 setPriceTouched(true);
-                setPriceRange(value as [number, number]);
+                setPriceRangeInput(value as [number, number]);
               }}
               valueLabelDisplay="auto"
               valueLabelFormat={(value) => `$${value}`}
@@ -486,6 +543,40 @@ export default function ContractsPage({
         </Grid>
       </Paper>
 
+      <Paper variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
+        <Grid container spacing={2} alignItems="center">
+          <Grid size={{ xs: 12, md: 4 }}>
+            <FormControl fullWidth>
+              <InputLabel id="sort-label">Sort</InputLabel>
+              <Select
+                labelId="sort-label"
+                label="Sort"
+                value={sortBy ? `${sortBy}:${sortDir}` : "default"}
+                onChange={(event) => {
+                  const value = String(event.target.value);
+                  if (value === "default") {
+                    setSortBy("");
+                    setSortDir("desc");
+                    return;
+                  }
+                  const [nextSortBy, nextSortDir] = value.split(":");
+                  setSortBy(nextSortBy);
+                  setSortDir(nextSortDir ?? "desc");
+                }}
+              >
+                <MenuItem value="default">Default</MenuItem>
+                <MenuItem value="price:asc">Price (low → high)</MenuItem>
+                <MenuItem value="price:desc">Price (high → low)</MenuItem>
+                <MenuItem value="quantity:asc">Quantity (low → high)</MenuItem>
+                <MenuItem value="quantity:desc">Quantity (high → low)</MenuItem>
+                <MenuItem value="date:asc">Date (earliest → latest)</MenuItem>
+                <MenuItem value="date:desc">Date (latest → earliest)</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+        </Grid>
+      </Paper>
+
       {isLoading ? (
         <Stack alignItems="center" justifyContent="center" sx={{ py: 8 }}>
           <CircularProgress />
@@ -495,7 +586,7 @@ export default function ContractsPage({
       ) : (
         <Grid container spacing={2}>
           {data?.items.map((c) => (
-            <Grid key={c.id} size={{ xs: 12, md: 6 }}>
+            <Grid key={c.id} size={{ xs: 12 }}>
               <Card variant="outlined" sx={{ borderRadius: 3, height: "100%" }}>
                 <CardContent>
                   <Stack
@@ -509,7 +600,7 @@ export default function ContractsPage({
                         <Button
                           size="small"
                           component={Link}
-                          to={`/contract/${c.id}`}
+                          to={`/contracs/${c.id}`}
                           state={{
                             from: `${location.pathname}${location.search}`,
                           }}

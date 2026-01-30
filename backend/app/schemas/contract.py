@@ -32,3 +32,7 @@ class ContractListOut(BaseModel):
     page: int
     page_size: int
     total: int
+
+class ContractPriceBoundsOut(BaseModel):
+    min_price: float | None
+    max_price: float | None

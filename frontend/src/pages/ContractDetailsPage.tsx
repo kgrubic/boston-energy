@@ -28,7 +28,7 @@ export default function ContractDetailsPage() {
   const qc = useQueryClient();
   const { notify } = useNotifications();
   const location = useLocation();
-  const backTo = (location.state as LocationState | null)?.from ?? "/";
+  const backTo = (location.state as LocationState | null)?.from ?? "/contracs";
 
   const id = useMemo(() => Number(contractId), [contractId]);
   const {

@@ -5,9 +5,64 @@ from sqlalchemy import select, and_, func
 
 from app.db.session import get_db
 from app.models.contract import Contract, EnergyType, ContractStatus
-from app.schemas.contract import ContractCreate, ContractOut, ContractUpdate, ContractListOut
+from app.schemas.contract import (
+    ContractCreate,
+    ContractOut,
+    ContractUpdate,
+    ContractListOut,
+    ContractPriceBoundsOut,
+)
 
 router = APIRouter(prefix="/contracts", tags=["contracts"])
+
+@router.get("/price-bounds", response_model=ContractPriceBoundsOut)
+def price_bounds(
+    db: Session = Depends(get_db),
+    energy_type: list[EnergyType] | None = Query(default=None),
+    location: list[str] | None = Query(default=None),
+    status: ContractStatus | None = ContractStatus.Available,
+    qty_min: int | None = None,
+    qty_max: int | None = None,
+    start_from: date | None = None,
+    end_to: date | None = None,
+):
+    if qty_min is not None and qty_max is not None and qty_min > qty_max:
+        raise HTTPException(status_code=400, detail="qty_min cannot be greater than qty_max")
+    if start_from is not None and end_to is not None and start_from > end_to:
+        raise HTTPException(status_code=400, detail="start_from cannot be after end_to")
+
+    filters = []
+    if status is not None:
+        filters.append(Contract.status == status)
+    if energy_type:
+        filters.append(Contract.energy_type.in_(energy_type))
+    if location:
+        filters.append(Contract.location.in_(location))
+    if qty_min is not None:
+        filters.append(Contract.quantity_mwh >= qty_min)
+    if qty_max is not None:
+        filters.append(Contract.quantity_mwh <= qty_max)
+    if start_from is not None:
+        filters.append(Contract.delivery_start >= start_from)
+    if end_to is not None:
+        filters.append(Contract.delivery_end <= end_to)
+
+    stmt = (
+        select(
+            func.min(Contract.price_per_mwh),
+            func.max(Contract.price_per_mwh),
+        ).where(and_(*filters))
+        if filters
+        else select(
+            func.min(Contract.price_per_mwh),
+            func.max(Contract.price_per_mwh),
+        )
+    )
+    min_price, max_price = db.execute(stmt).one()
+    return ContractPriceBoundsOut(
+        min_price=float(min_price) if min_price is not None else None,
+        max_price=float(max_price) if max_price is not None else None,
+    )
 
 @router.get("/locations", response_model=list[str])
 def list_locations(db: Session = Depends(get_db)):
