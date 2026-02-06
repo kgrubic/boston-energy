@@ -1,0 +1,254 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [ 8 0 R 9 0 R 10 0 R ] /Count 3 /MediaBox [0 0 612 792] >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+5 0 obj
+<< /Length 3502 >>
+stream
+BT
+/F1 12 Tf
+54 738 Td
+(Boston Energy - Interview Q&A) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Q1. Walk me through the end-to-end flow when the user filters contracts by energy type and) Tj
+0 -14 Td
+(price range.) Tj
+0 -14 Td
+(A: User selections update state and query params on the Contracts page. React Query calls) Tj
+0 -14 Td
+(/api/contracts/price-bounds to compute slider min/max based on the same filters. When the) Tj
+0 -14 Td
+(slider changes, the client calls GET /api/contracts with energy_type, price_min,) Tj
+0 -14 Td
+(price_max, page, etc. The backend builds a filters list, applies them to a SQLAlchemy) Tj
+0 -14 Td
+(select, adds sorting and pagination, and returns items plus total.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Q2. Explain how authentication works end-to-end in this project.) Tj
+0 -14 Td
+(A: The UI posts username/password to POST /api/auth/login. The backend checks hardcoded) Tj
+0 -14 Td
+(demo credentials, then creates a JWT-like token \(HS256\) with sub and exp. The frontend) Tj
+0 -14 Td
+(stores it in localStorage and sends Authorization: Bearer <token> on every request via an) Tj
+0 -14 Td
+(Axios interceptor. Protected endpoints use Depends\(get_current_user\), which validates the) Tj
+0 -14 Td
+(signature and expiration and returns 401 if invalid.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Q3. Explain how the portfolio metrics are computed on the backend.) Tj
+0 -14 Td
+(A: The backend joins PortfolioItem and Contract for the default user, selecting) Tj
+0 -14 Td
+(energy_type, quantity_mwh, and price_per_mwh. It computes total_contracts, total_capacity,) Tj
+0 -14 Td
+(total_cost \(sum of quantity * price\), weighted_avg_price_per_mwh \(total_cost /) Tj
+0 -14 Td
+(total_capacity\), and aggregates capacity/cost by energy type.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Q4. Why does the backend have both Pydantic schemas and SQLAlchemy models?) Tj
+0 -14 Td
+(A: SQLAlchemy models define how data is stored in the DB \(tables, columns, relationships\).) Tj
+0 -14 Td
+(Pydantic schemas define how data is validated and serialized at the API boundary. Using) Tj
+0 -14 Td
+(both keeps persistence separate from API validation/response shape.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Q5. What happens if a client sends qty_min=100 and qty_max=10 to /api/contracts?) Tj
+0 -14 Td
+(A: The handler validates the range and raises HTTP 400 with detail: 'qty_min cannot be) Tj
+0 -14 Td
+(greater than qty_max'.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Q6. How does the frontend know which API base URL to use in dev vs prod?) Tj
+0 -14 Td
+(A: In frontend/src/api/client.ts it checks import.meta.env.PROD. In prod it uses the) Tj
+0 -14 Td
+(Render backend URL; in dev it uses /api \(assumed to be proxied\).) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Q7. Why does PortfolioItem have a unique constraint on \(user_id, contract_id\)?) Tj
+0 -14 Td
+(A: To prevent the same user adding the same contract to the portfolio multiple times.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Q8. Describe how pagination is implemented in GET /api/contracts.) Tj
+0 -14 Td
+(A: Frontend keeps page state and passes page/page_size as query params. Backend validates) Tj
+0 -14 Td
+(page and page_size, calculates offset = \(page - 1\) * page_size, applies offset/limit, and) Tj
+0 -14 Td
+(returns items plus total count for pagination UI.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Q9. How does the backend ensure GET /api/contracts doesn’t return excessive items?) Tj
+0 -14 Td
+(A: It validates page_size is 1..100 and applies limit\(page_size\) to the query. Default is) Tj
+0 -14 Td
+(page_size=20.) Tj
+0 -14 Td
+() Tj
+ET
+endstream
+endobj
+6 0 obj
+<< /Length 3393 >>
+stream
+BT
+/F1 12 Tf
+54 738 Td
+(Q10. What happens when a contract is marked as sold from the UI?) Tj
+0 -14 Td
+(A: Frontend calls PATCH /api/contracts/{id} with { status: 'Sold' }. Backend uses) Tj
+0 -14 Td
+(ContractUpdate to apply provided fields and commits the change, setting Contract.status to) Tj
+0 -14 Td
+(Sold.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Q11. How does the frontend handle caching or avoiding refetches for contract data?) Tj
+0 -14 Td
+(A: It uses React Query. The queryKey is ['contracts', filters], so each filter combination) Tj
+0 -14 Td
+(is cached separately and reused until the key changes or is invalidated.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Q12. Why does the backend use response_model on routes?) Tj
+0 -14 Td
+(A: It validates and serializes responses to a defined schema, ensuring consistent output.) Tj
+0 -14 Td
+(Example: GET /api/contracts/{id} uses response_model=ContractOut so responses include) Tj
+0 -14 Td
+(ContractBase fields plus id, and are serialized from ORM objects.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Q13. Why use URLSearchParams and repeated keys for arrays?) Tj
+0 -14 Td
+(A: FastAPI expects list query params as repeated keys \(e.g.,) Tj
+0 -14 Td
+(energy_type=Solar&energy_type=Wind\). URLSearchParams makes it easy to append repeated keys) Tj
+0 -14 Td
+(so FastAPI can parse list[EnergyType].) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Q14. Why does ContractOut have model_config = {'from_attributes': True}?) Tj
+0 -14 Td
+(A: It allows Pydantic to read fields from SQLAlchemy ORM objects. Without it, response) Tj
+0 -14 Td
+(serialization would fail or omit fields when returning ORM instances.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Q15. Why does PortfolioItemOut include contract: ContractOut, and how is it populated?) Tj
+0 -14 Td
+(A: PortfolioItem has a relationship to Contract. With from_attributes=True, Pydantic reads) Tj
+0 -14 Td
+(the related contract ORM object and serializes it as a nested ContractOut.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Q16. Where is CORS configured and which origins are allowed?) Tj
+0 -14 Td
+(A: CORS is configured in backend/app/core/cors.py using origins from settings. Default) Tj
+0 -14 Td
+(origins include http://localhost:5173 and https://kgrubic.github.io, allowing the frontend) Tj
+0 -14 Td
+(to call the API from those hosts.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Q17. Explain how database sessions are created and injected into routes.) Tj
+0 -14 Td
+(A: SessionLocal is created in backend/app/db/session.py. get_db\(\) yields a session and) Tj
+0 -14 Td
+(closes it after. Routes inject it with db: Session = Depends\(get_db\).) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Q18. Why does create_contract call db.refresh\(c\) after db.commit\(\)?) Tj
+0 -14 Td
+(A: To reload DB-generated values \(like auto-increment id\) into the ORM object before) Tj
+0 -14 Td
+(returning it.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Q19. What does select\(func.count\(\)\).select_from\(Contract\) do and why is it separate?) Tj
+0 -14 Td
+(A: It computes the total number of matching contracts. It’s separate because the main) Tj
+0 -14 Td
+(query is paginated; a second count query is needed for total results.) Tj
+0 -14 Td
+() Tj
+0 -14 Td
+(Q20. Difference between ContractCreate and ContractUpdate?) Tj
+0 -14 Td
+(A: ContractCreate inherits ContractBase so all fields are required. ContractUpdate makes) Tj
+0 -14 Td
+(all fields optional to allow partial PATCH updates; the handler applies only provided) Tj
+0 -14 Td
+(fields.) Tj
+ET
+endstream
+endobj
+7 0 obj
+<< /Length 31 >>
+stream
+BT
+/F1 12 Tf
+54 738 Td
+() Tj
+ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>
+endobj
+9 0 obj
+<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /Contents 6 0 R >>
+endobj
+10 0 obj
+<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /Contents 7 0 R >>
+endobj
+xref
+0 10
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000154 00000 n 
+0000000224 00000 n 
+0000003778 00000 n 
+0000007223 00000 n 
+0000007304 00000 n 
+0000007406 00000 n 
+0000007508 00000 n 
+trailer
+<< /Size 10 /Root 1 0 R >>
+startxref
+7611
+%%EOF

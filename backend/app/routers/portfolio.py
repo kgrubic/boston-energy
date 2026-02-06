@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func
@@ -7,6 +8,8 @@ from app.models.portfolio import PortfolioItem
 from app.models.contract import Contract
 from app.schemas.portfolio import PortfolioItemOut, PortfolioMetrics
 from app.core.security import get_current_user
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
@@ -18,17 +21,20 @@ def add_to_portfolio(
     db: Session = Depends(get_db),
     _: dict = Depends(get_current_user),
 ):
+    logger.info("portfolio.add: user_id=%s contract_id=%s", DEFAULT_USER_ID, contract_id)
     # upsert-ish
     existing = db.scalar(select(PortfolioItem).where(
         PortfolioItem.user_id == DEFAULT_USER_ID,
         PortfolioItem.contract_id == contract_id
     ))
     if existing:
+        logger.info("portfolio.add: already exists user_id=%s contract_id=%s", DEFAULT_USER_ID, contract_id)
         return {"ok": True, "already": True}
 
     item = PortfolioItem(user_id=DEFAULT_USER_ID, contract_id=contract_id)
     db.add(item)
     db.commit()
+    logger.info("portfolio.add: created user_id=%s contract_id=%s", DEFAULT_USER_ID, contract_id)
     return {"ok": True}
 
 @router.delete("/items/{contract_id}", status_code=204)
@@ -37,14 +43,17 @@ def remove_from_portfolio(
     db: Session = Depends(get_db),
     _: dict = Depends(get_current_user),
 ):
+    logger.info("portfolio.remove: user_id=%s contract_id=%s", DEFAULT_USER_ID, contract_id)
     item = db.scalar(select(PortfolioItem).where(
         PortfolioItem.user_id == DEFAULT_USER_ID,
         PortfolioItem.contract_id == contract_id
     ))
     if not item:
+        logger.warning("portfolio.remove: not found user_id=%s contract_id=%s", DEFAULT_USER_ID, contract_id)
         return
     db.delete(item)
     db.commit()
+    logger.info("portfolio.remove: deleted user_id=%s contract_id=%s", DEFAULT_USER_ID, contract_id)
 
 @router.get("/items", response_model=list[PortfolioItemOut])
 def list_items(
@@ -55,6 +64,10 @@ def list_items(
         select(PortfolioItem).where(PortfolioItem.user_id == DEFAULT_USER_ID)
         .order_by(PortfolioItem.id.desc())
     ).all()
+    if not items:
+        logger.info("portfolio.list: empty user_id=%s", DEFAULT_USER_ID)
+    else:
+        logger.info("portfolio.list: count=%s user_id=%s", len(items), DEFAULT_USER_ID)
     return items
 
 @router.get("/metrics", response_model=PortfolioMetrics)
@@ -67,6 +80,8 @@ def metrics(
         .join(PortfolioItem, PortfolioItem.contract_id == Contract.id)
         .where(PortfolioItem.user_id == DEFAULT_USER_ID)
     ).all()
+    if not rows:
+        logger.info("portfolio.metrics: empty user_id=%s", DEFAULT_USER_ID)
 
     total_contracts = len(rows)
     total_capacity = sum(int(q) for _, q, _ in rows)
